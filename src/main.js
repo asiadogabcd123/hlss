@@ -1,30 +1,18 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
-import router from './router'
+import router from './router'  // 确保路径正确
 import './assets/styles.css'
 
-// 引入字體庫
+// 引入字体图标库
 import '@fortawesome/fontawesome-free/css/all.css'
-
-// 引入QR碼庫
-import QrcodeVue from 'qrcode.vue'
 
 const app = createApp(App)
 
+// 使用状态管理
 app.use(createPinia())
+
+// 使用路由
 app.use(router)
 
-// 全局組件
-app.component('QrcodeVue', QrcodeVue)
-
-// 全局配置
-app.config.globalProperties.$filters = {
-  formatDate(value) {
-    return new Date(value).toLocaleString('zh-TW')
-  }
-}
-
 app.mount('#app')
-
-console.log('應用程式已啟動 - 酒店行李管理系統 v1.0')

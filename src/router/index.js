@@ -30,7 +30,8 @@ const routes = [
     path: '/guest/qr/:id',
     component: () => import('@/views/guest/QRDisplay.vue'),
     props: true
-  }
+  },
+
 ]
 
 const router = createRouter({

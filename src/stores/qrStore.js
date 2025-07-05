@@ -3,12 +3,11 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
 export const useQrStore = defineStore('qr', () => {
-  const qrUrl = ref('');
-  const generateQr = (staffId) => {
-    qrUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-      `${window.location.origin}/retrieve?staff=${staffId}`
-    )}`;
+  const qrData = ref('');
+
+  const generateQr = () => {
+    qrData.value = `${window.location.origin}/retrieve`; // 纯路径，无参数
   };
 
-  return { qrUrl, generateQr };
+  return { qrData, generateQr };
 });

@@ -2,6 +2,8 @@
   <div class="dashboard-container">
     <div class="header">
       <h1><i class="fas fa-tachometer-alt"></i> 行李管理控制台</h1>
+      <StaffQrGenerator />
+
       <div class="stats">
         <stat-card 
           icon="suitcase" 
@@ -43,6 +45,8 @@
 import { ref, onMounted } from 'vue'
 import StatCard from '@/components/StatCard.vue'
 import BagList from '@/components/BagList.vue'
+import StaffQrGenerator from '@/components/QrGenerator.vue';
+
 
 const stats = ref({
   current: 0,
