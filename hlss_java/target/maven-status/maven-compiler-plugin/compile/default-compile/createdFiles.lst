@@ -1,0 +1,13 @@
+com\landmark\hlss_java\dto\LuggageResponse$Builder.class
+com\landmark\hlss_java\exception\GlobalExceptionHandler.class
+com\landmark\hlss_java\dto\LuggageRequest.class
+com\landmark\hlss_java\HlssJavaApplication.class
+com\landmark\hlss_java\entity\Luggage.class
+com\landmark\hlss_java\service\LuggageService.class
+com\landmark\hlss_java\repository\LuggageRepository.class
+com\landmark\hlss_java\controller\LuggageController.class
+com\landmark\hlss_java\exception\GlobalExceptionHandler$2.class
+com\landmark\hlss_java\dto\LuggageResponse.class
+com\landmark\hlss_java\entity\LuggageStatus.class
+com\landmark\hlss_java\util\VerificationCodeGenerator.class
+com\landmark\hlss_java\exception\GlobalExceptionHandler$1.class

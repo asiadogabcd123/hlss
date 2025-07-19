@@ -1,28 +1,37 @@
 <template>
   <div class="dashboard-container">
+    <!-- 標題區 -->
     <div class="header">
       <h1><i class="fas fa-tachometer-alt"></i> 行李管理控制台</h1>
       <StaffQrGenerator />
 
+      <!-- 統計卡片區 -->
       <div class="stats">
-        <stat-card 
+        <StatCard 
           icon="suitcase" 
           title="當前寄存" 
           :value="stats.current" 
-          color="#3498db" />
-        <stat-card 
+          color="#3498db" 
+          :loading="loading"
+        />
+        <StatCard 
           icon="sign-in-alt" 
           title="今日寄存" 
           :value="stats.todayIn" 
-          color="#2ecc71" />
-        <stat-card 
+          color="#2ecc71" 
+          :loading="loading"
+        />
+        <StatCard 
           icon="sign-out-alt" 
           title="今日取件" 
           :value="stats.todayOut" 
-          color="#e74c3c" />
+          color="#e74c3c" 
+          :loading="loading"
+        />
       </div>
     </div>
 
+    <!-- 快速操作區 -->
     <div class="actions">
       <router-link to="/staff/scan" class="action-card">
         <i class="fas fa-qrcode"></i>
@@ -34,64 +43,81 @@
       </router-link>
     </div>
 
+    <!-- 最近操作記錄 -->
     <div class="recent-bags">
       <h2><i class="fas fa-clock"></i> 最近操作</h2>
-      <bag-list :bags="recentBags" />
+      <BagList :bags="recentBags" :loading="loading" />
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { fetchDashboardData } from '@/api/luggage' // 假設的API請求方法
 import StatCard from '@/components/StatCard.vue'
 import BagList from '@/components/BagList.vue'
-import StaffQrGenerator from '@/components/QrGenerator.vue';
+import StaffQrGenerator from '@/components/QrGenerator.vue'
 
-
+const loading = ref(true)
 const stats = ref({
   current: 0,
   todayIn: 0,
   todayOut: 0
 })
 
-const recentBags = ref([
-  {
-    id: 'BAG-1001',
-    guestName: '王小明',
-    time: new Date(),
-    status: '已寄存',
-    area: 'A區'
-  },
-  {
-    id: 'BAG-1002',
-    guestName: '陳大文',
-    time: new Date(Date.now() - 3600000),
-    status: '已取件',
-    area: 'B區'
+const recentBags = ref([])
+
+// 從API獲取數據
+const loadDashboardData = async () => {
+  try {
+    loading.value = true
+    const response = await fetchDashboardData()
+    
+    // 更新統計數據
+    stats.value = {
+      current: response.data.currentStorage,
+      todayIn: response.data.todayCheckin,
+      todayOut: response.data.todayCheckout
+    }
+    
+    // 更新最近行李記錄
+    recentBags.value = response.data.recentBags.map(bag => ({
+      id: `BAG-${bag.id}`,
+      guestName: bag.guest_name,
+      time: new Date(bag.checkin_time),
+      status: bag.status === 'STORED' ? '已寄存' : '已取件',
+      area: `區${bag.location ? bag.location.charAt(0) : 'A'}` // 假設位置第一個字符是區域
+    }))
+    
+  } catch (error) {
+    console.error('獲取儀表板數據失敗:', error)
+    // 可以在此處添加錯誤處理，如顯示通知
+  } finally {
+    loading.value = false
   }
-])
+}
 
 onMounted(() => {
-  // 模擬載入數據
-  setTimeout(() => {
-    stats.value = {
-      current: 24,
-      todayIn: 12,
-      todayOut: 8
-    }
-  }, 500)
+  loadDashboardData()
+  
+  // 可選：設置定時刷新（每5分鐘）
+  const refreshInterval = setInterval(loadDashboardData, 5 * 60 * 1000)
+  
+  // 組件卸載時清除定時器
+  return () => clearInterval(refreshInterval)
 })
 </script>
 
+
 <style scoped>
-/* 基础布局样式 */
+/* 基礎佈局 */
 .dashboard-container {
   padding: 20px;
-  position: relative;
   max-width: 1200px;
   margin: 0 auto;
 }
 
+/* 標題區樣式 */
 .header {
   margin-bottom: 30px;
 }
@@ -104,7 +130,7 @@ onMounted(() => {
   gap: 10px;
 }
 
-/* 统计卡片容器 */
+/* 統計卡片區 */
 .stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -112,7 +138,7 @@ onMounted(() => {
   margin-top: 25px;
 }
 
-/* 快速操作按钮 */
+/* 快速操作按鈕 */
 .actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -125,16 +151,15 @@ onMounted(() => {
   border-radius: 10px;
   padding: 20px;
   text-align: center;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
   color: #2c3e50;
-  border: none;
-  cursor: pointer;
+  text-decoration: none;
 }
 
 .action-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
 .action-card i {
@@ -149,12 +174,12 @@ onMounted(() => {
   font-size: 1.1rem;
 }
 
-/* 最近行李记录 */
+/* 最近行李記錄區 */
 .recent-bags {
   background: white;
   border-radius: 10px;
   padding: 20px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   margin-top: 30px;
 }
 
@@ -167,189 +192,7 @@ onMounted(() => {
   font-size: 1.5rem;
 }
 
-/* 二维码生成模态框 */
-.qr-generator-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  backdrop-filter: blur(3px);
-}
-
-.modal-content {
-  background: white;
-  border-radius: 15px;
-  padding: 30px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-  animation: modalFadeIn 0.3s ease;
-}
-
-@keyframes modalFadeIn {
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.modal-content h2 {
-  color: #2c3e50;
-  text-align: center;
-  margin-bottom: 25px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-/* 二维码类型选择 */
-.qr-type-selector {
-  display: flex;
-  gap: 10px;
-  margin: 25px 0;
-}
-
-.qr-type-selector button {
-  flex: 1;
-  padding: 15px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  background: none;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.qr-type-selector button:hover {
-  border-color: #3498db;
-}
-
-.qr-type-selector button.active {
-  border-color: #3498db;
-  background: #e3f2fd;
-  font-weight: 600;
-}
-
-.qr-type-selector button i {
-  font-size: 1.2rem;
-}
-
-/* 二维码预览区域 */
-.qr-preview-container {
-  text-align: center;
-  margin-top: 20px;
-}
-
-.qr-display {
-  display: inline-block;
-  background: white;
-  padding: 25px;
-  border-radius: 10px;
-  border: 1px solid #eee;
-  margin-bottom: 25px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.05);
-}
-
-.qr-meta {
-  text-align: left;
-  margin-top: 20px;
-  font-size: 0.95rem;
-  color: #555;
-  background: #f9f9f9;
-  padding: 15px;
-  border-radius: 8px;
-}
-
-.qr-meta p {
-  margin: 8px 0;
-  display: flex;
-  align-items: center;
-}
-
-.qr-meta i {
-  margin-right: 10px;
-  color: #3498db;
-  width: 20px;
-  text-align: center;
-}
-
-/* 操作按钮 */
-.qr-actions {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 25px;
-}
-
-.btn {
-  padding: 12px 20px;
-  border-radius: 8px;
-  border: none;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 1rem;
-}
-
-.btn-primary {
-  background: #3498db;
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #2980b9;
-  transform: translateY(-2px);
-}
-
-.btn-secondary {
-  background: #2ecc71;
-  color: white;
-}
-
-.btn-secondary:hover {
-  background: #27ae60;
-  transform: translateY(-2px);
-}
-
-.btn-warning {
-  background: #e74c3c;
-  color: white;
-}
-
-.btn-warning:hover {
-  background: #c0392b;
-  transform: translateY(-2px);
-}
-
-.btn-generate {
-  background: #9b59b6;
-  color: white;
-  padding: 15px 30px;
-  font-size: 1.1rem;
-  margin: 20px auto;
-  display: block;
-}
-
-.btn-generate:hover {
-  background: #8e44ad;
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(155, 89, 182, 0.4);
-}
-
-/* 响应式设计 */
+/* 響應式設計 */
 @media (max-width: 768px) {
   .stats {
     grid-template-columns: 1fr;
@@ -357,46 +200,6 @@ onMounted(() => {
   
   .actions {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  }
-  
-  .modal-content {
-    padding: 20px;
-  }
-  
-  .qr-type-selector {
-    flex-direction: column;
-  }
-  
-  .qr-actions {
-    flex-direction: column;
-  }
-  
-  .btn {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
-@media print {
-  body * {
-    visibility: hidden;
-  }
-  .qr-display, .qr-display * {
-    visibility: visible;
-  }
-  .qr-display {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    background: white;
-    border: none;
-    box-shadow: none;
   }
 }
 </style>

@@ -13,14 +13,14 @@
             id="phone"
             v-model="phone"
             type="tel"
-            placeholder="請輸入手機號碼"
+            placeholder="請輸入手機號碼 (11位内地/8位港澳)"
             required
-            pattern="[0-9]{10}"
-            title="請輸入10位手機號碼"
+            pattern="(1[3-9]\d{9})|([5-9]\d{7})"
+            title="請輸入有效的手機號碼 (11位内地: 13-19開頭 | 8位港澳: 5/6/9開頭)"
           >
           <small>用於取件時驗證身份</small>
         </div>
-
+      
         <button type="submit" class="btn btn-primary">
           <i class="fas fa-qrcode"></i> 生成取件二維碼
         </button>
@@ -47,16 +47,19 @@ export default {
     }
   },
   methods: {
-    generateQR() {
-      if (!this.phone.match(/^[0-9]{10}$/)) {
-        alert('請輸入有效的手機號碼（10位數字）')
-        return
-      }
-      
-      const bagId = 'BAG-' + Math.floor(1000 + Math.random() * 9000)
-      this.$router.push(`/guest/qr/${bagId}?phone=${this.phone}`)
+  generateQR() {
+    // 正則表達式匹配：
+    // 1. 中國內地手機號 (11位，1開頭，第二位3-9)
+    // 2. 香港/澳門手機號 (8位，5/6/9開頭)
+    if (!this.phone.match(/^((1[3-9]\d{9})|([5-9]\d{7}))$/)) {
+      alert('請輸入有效的手機號碼\n\n中國內地: 11位 (13-19開頭)\n香港/澳門: 8位 (5/6/9開頭)');
+      return;
     }
+    
+    const bagId = 'BAG-' + Math.floor(1000 + Math.random() * 9000);
+    this.$router.push(`/guest/qr/${bagId}?phone=${this.phone}`);
   }
+}
 }
 </script>
 

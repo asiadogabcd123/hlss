@@ -1,12 +1,29 @@
 const { defineConfig } = require('@vue/cli-service')
-module.exports = defineConfig({
-  transpileDependencies: true,
+const webpack = require('webpack')
 
+module.exports = defineConfig({
   devServer: {
-    host: '0.0.0.0', // 允许局域网访问
-    port: 8081,      // 固定端口
-    hot: true,
-    allowedHosts: 'all' // 允许所有主机访问
+    port: 8081, 
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8001', 
+        changeOrigin: true,
+        pathRewrite: {
+          '^/api': '' 
+        }
+      }
+    }
+  },
+  transpileDependencies: true,
+  configureWebpack: {
+    plugins: [
+      new webpack.DefinePlugin({
+        __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(false),
+        'process.env': {
+          VUE_APP_VERSION: JSON.stringify(process.env.VUE_APP_VERSION),
+          VUE_APP_API_BASE: JSON.stringify(process.env.VUE_APP_API_BASE)
+        }
+      })
+    ]
   }
-  
 })

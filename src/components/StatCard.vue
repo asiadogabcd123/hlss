@@ -5,7 +5,8 @@
     </div>
     <div class="content">
       <h3>{{ title }}</h3>
-      <p>{{ value }}</p>
+      <div v-if="loading" class="loading-placeholder"></div>
+      <p v-else class="value">{{ value }}</p>
     </div>
   </div>
 </template>
@@ -24,6 +25,15 @@ defineProps({
 </script>
 
 <style scoped>
+
+.loading-placeholder {
+  width: 60px;
+  height: 24px;
+  background: #eee;
+  border-radius: 4px;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
 .stat-card {
   background: white;
   border-radius: 8px;
@@ -49,5 +59,11 @@ defineProps({
   margin: 5px 0 0;
   font-size: 1.5rem;
   font-weight: bold;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.6; }
 }
 </style>
