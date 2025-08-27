@@ -2,8 +2,9 @@ import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 
 const api = axios.create({
-  baseURL: process.env.VUE_APP_API_BASE || 'http://localhost:8001/api',
+  baseURL:  'http://192.168.28.10:8001/api',
   timeout: 10000,
+  withCredentials: false,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -17,11 +18,6 @@ const api = axios.create({
   }]
 })
 
-export const luggageApi = {
-  register: (data) => api.post('/luggage', data),
-  get: (id) => api.get(`/luggage/${id}`),
-  pickup: (id) => api.patch(`/luggage/${id}/pickup`)
-}
 
 // 請求攔截器
 api.interceptors.request.use(config => {
@@ -29,8 +25,10 @@ api.interceptors.request.use(config => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  
+  
   if (process.env.NODE_ENV === 'development') {
-    console.log('[API請求]', {
+    console.log('[API请求]', {
       url: config.url,
       method: config.method,
       params: config.params,

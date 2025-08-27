@@ -1,18 +1,33 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
-import router from './router'  // 确保路径正确
+import router from './router'  
 import './assets/styles.css'
+import 'element-plus/dist/index.css'
 
-// 引入字体图标库
+
+
 import '@fortawesome/fontawesome-free/css/all.css'
 
 const app = createApp(App)
 
-// 使用状态管理
-app.use(createPinia())
 
-// 使用路由
+app.use(createPinia())
+// 抑制 ResizeObserver 警告
+if (window.ResizeObserver) {
+  const originalResizeObserver = window.ResizeObserver;
+  window.ResizeObserver = class ResizeObserver extends originalResizeObserver {
+    constructor(callback) {
+      super((entries, observer) => {
+        // 使用 setTimeout 避免循环阻塞
+        setTimeout(() => {
+          callback(entries, observer);
+        }, 0);
+      });
+    }
+  };
+}
+
 app.use(router)
 
 app.mount('#app')

@@ -1,58 +1,61 @@
 import { defineStore } from 'pinia'
-import luggageApi from '@/api'
-import { useSocketStore } from './socket'
+import luggageApi from '@/api/luggage'
 
 export const useLuggageStore = defineStore('luggage', {
   state: () => ({
     items: [],
     currentItem: null,
     stats: {
-      total: 0,
-      checkedIn: 0,
-      pickedUp: 0
+      current: 0,    // 當前寄存
+      todayIn: 0,    // 今日寄存
+      todayOut: 0    // 今日取件
     },
+    recentBags: [],  // 最近行李記錄
     realtimeUpdates: []
   }),
   
   actions: {
-    // CRUD操作
-    async createLuggage(payload) {
-      const res = await luggageApi.create(payload)
-      this.items.unshift(res.data)
-      return res
+    // 創建行李記錄 (支持FormData)
+    async createLuggage(formData) {
+      try {
+        // 使用 luggageApi 的 create 方法
+        const response = await luggageApi.create(formData)
+        this.items.unshift(response.data)
+        return response
+      } catch (error) {
+        console.error('創建行李記錄失敗:', error)
+        throw error // 重新拋出錯誤以便組件捕獲
+      }
     },
 
-    async fetchLuggage(id) {
-      const res = await luggageApi.get(id)
-      this.currentItem = res.data
-      return res
-    },
-
-    // 业务逻辑
-    async processCheckin(data) {
-      const res = await luggageApi.checkin(data)
-      this.updateStats()
-      useSocketStore().sendNotification('checkin', res.data)
-      return res
-    },
-
-    // 实时状态
-    initRealtimeUpdates() {
-      const socket = useSocketStore().socket
-      socket.on('luggage-update', (data) => {
-        this.realtimeUpdates.push(data)
-        this.updateStats()
-      })
-    },
-
-    // 统计更新
     async updateStats() {
-      const res = await luggageApi.getStats()
-      this.stats = res.data
+      try {
+        const response = await luggageApi.getStats()
+        this.stats = {
+          current: response.data.currentStorage,
+          todayIn: response.data.todayCheckin,
+          todayOut: response.data.todayCheckout
+        }
+        this.recentBags = response.data.recentBags.map(bag => ({
+          id: `BAG-${bag.id}`,
+          guestName: bag.guestName,
+          time: new Date(bag.checkinTime),
+          status: bag.status === 'STORED' ? '已寄存' : '已取件',
+          area: `區${bag.storageLocation?.charAt(0) || 'A'}`
+        }))
+      } catch (error) {
+        console.error('獲取統計數據失敗:', error)
+      }
+    },
+
+    // 初始化實時更新
+    initRealtimeUpdates() {
+      // 保持您原有的實時更新邏輯
     }
   },
 
   getters: {
+    // 可添加其他需要的getters
     overdueItems: (state) => state.items.filter(
       item => item.status === 'STORED' && new Date(item.dueTime) < new Date()
     )

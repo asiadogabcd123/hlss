@@ -1,102 +1,32 @@
 package com.landmark.hlss_java.dto;
 
+import lombok.Builder;
+import lombok.Data;
+
 import java.time.LocalDateTime;
 
+@Data
+@Builder
 public class LuggageResponse {
-    private Long id;
-    private String guestName;
-    private String verificationCode;
+    private String id;
+    private GuestInfo guest;
     private LocalDateTime checkinTime;
-    private Integer luggageCount;
+    private LocalDateTime dueTime;
     private String status;
+    private StorageInfo storage;
+    private String handler;
 
-    // 私有构造器（只能通过Builder创建）
-    private LuggageResponse(Builder builder) {
-        this.id = builder.id;
-        this.guestName = builder.guestName;
-        this.verificationCode = builder.verificationCode;
-        this.checkinTime = builder.checkinTime;
-        this.luggageCount = builder.luggageCount;
-        this.status = builder.status;
+    @Data
+    @Builder
+    public static class GuestInfo {
+        private String name;
+        private String contact;
+        private String roomNumber;
     }
 
-    // ---------------------------
-    // Getter 方法（Lombok @Data 的替代）
-    // ---------------------------
-    public Long getId() {
-        return id;
-    }
-
-    public String getGuestName() {
-        return guestName;
-    }
-
-    public String getVerificationCode() {
-        return verificationCode;
-    }
-
-    public LocalDateTime getCheckinTime() {
-        return checkinTime;
-    }
-
-    public Integer getLuggageCount() {
-        return luggageCount;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    // ---------------------------
-    // Builder 静态内部类
-    // ---------------------------
-    public static class Builder {
-        private Long id;
-        private String guestName;
-        private String verificationCode;
-        private LocalDateTime checkinTime;
-        private Integer luggageCount;
-        private String status;
-
-        public Builder id(Long id) {
-            this.id = id;
-            return this;
-        }
-
-        public Builder guestName(String guestName) {
-            this.guestName = guestName;
-            return this;
-        }
-
-        public Builder verificationCode(String verificationCode) {
-            this.verificationCode = verificationCode;
-            return this;
-        }
-
-        public Builder checkinTime(LocalDateTime checkinTime) {
-            this.checkinTime = checkinTime;
-            return this;
-        }
-
-        public Builder luggageCount(Integer luggageCount) {
-            this.luggageCount = luggageCount;
-            return this;
-        }
-
-        public Builder status(String status) {
-            this.status = status;
-            return this;
-        }
-
-        public LuggageResponse build() {
-            return new LuggageResponse(this);
-        }
-    }
-
-    // ---------------------------
-    // 静态 builder() 入口方法
-    // ---------------------------
-    public static Builder builder() {
-        return new Builder();
+    @Data
+    @Builder
+    public static class StorageInfo {
+        private String location;
     }
 }

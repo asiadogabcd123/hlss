@@ -1,10 +1,10 @@
 <template>
   <div id="app">
-    <!-- 工作人員界面頂部導航 -->
-    <staff-nav v-if="authStore.role === 'STAFF'" />
+    <!-- 仅工作人员界面显示顶部导航 -->
+    <staff-nav v-if="showStaffNav" />
     
-    <!-- 主內容區域 -->
-    <main :class="{ 'staff-layout': authStore.role === 'STAFF' }">
+    <!-- 主内容区域 -->
+    <main :class="{ 'staff-layout': showStaffNav }">
       <router-view />
     </main>
     
@@ -14,27 +14,45 @@
 </template>
 
 <script setup>
-import { watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
-// 監聽身份變化
+// 计算属性：是否显示工作人员导航栏
+const showStaffNav = computed(() => {
+  return authStore.role === 'STAFF' && !route.meta.hideNav
+})
+
+// 监听身份变化
 watch(
   () => authStore.role,
   (newRole) => {
     if (newRole === 'STAFF') {
       router.push('/staff/dashboard')
-    } else if (newRole === null) {
+    } else if (newRole === null && route.path.startsWith('/staff')) {
       router.push('/staff/login')
+    }
+  },
+  { immediate: true }
+)
+
+// 防止已登录用户访问登录页
+watch(
+  () => route.path,
+  (newPath) => {
+    if (authStore.role === 'STAFF' && newPath === '/staff/login') {
+      router.push('/staff/dashboard')
     }
   }
 )
 </script>
 
 <style>
+/* 原有样式保持不变 */
 #app {
   font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -43,12 +61,12 @@ watch(
 }
 
 .staff-layout {
-  padding-top: 60px; /* 導航欄高度 */
+  padding-top: 60px; /* 导航栏高度 */
   min-height: calc(100vh - 60px);
   background: #f5f7fa;
 }
 
-/* 全域表單樣式 */
+/* 全局表单样式 */
 .form-group {
   margin-bottom: 1.5rem;
 }

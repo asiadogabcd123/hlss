@@ -1,50 +1,55 @@
 package com.landmark.hlss_java.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
+/**
+ * 行李實體類
+ * 對應數據庫中的luggage表，存儲行李相關信息
+ */
 @Entity
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "luggage")
 public class Luggage {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long id;                // 行李ID（主鍵）
 
-    @Column(nullable = false, length = 100)
-    private String guestName;
-
-    @Column(nullable = false, length = 20)
-    private String phone;
-
-    @Column(columnDefinition = "INT DEFAULT 1")
-    private Integer luggageCount = 1;
-
-    @CreationTimestamp
     @Column(nullable = false)
-    private LocalDateTime checkinTime;
+    private String guestName;       // 客人姓名
 
-    private LocalDateTime checkoutTime;
+    @Column(nullable = false)
+    private String phone;           // 客人聯繫電話
+
+    private String roomNumber;      // 房間號（可選）
+
+    @Column(nullable = false)
+    private Integer luggageCount;   // 行李數量
+
+    @Column(nullable = false)
+    private LocalDateTime checkinTime; // 寄存時間
+
+    private LocalDateTime checkoutTime; // 取件時間（取件時更新）
+
+    private String idNumber;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private LuggageStatus status = LuggageStatus.STORED;
+    @Column(nullable = false)
+    private LuggageStatus status;   // 行李狀態（STORED/EXPIRED/RETRIEVED）
 
-    @Column(length = 6)
-    private String verificationCode;
+    private String storageLocation; // 存放位置（可選）
 
-    // 新增字段
-    @Column(length = 20)
-    private String storageLocation;
+    private Long handlerStaffId;    // 處理人員ID（可選）
 
-    @Column(length = 255)
-    private String qrCodeUrl;
+    private Boolean qrGenerated = false; // QR碼是否已生成
 
-    @Column(length = 10)
-    private String handlerStaffId;
-
-
+    private String verificationCode; // 驗證碼（可選）
 }
