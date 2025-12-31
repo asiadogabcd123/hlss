@@ -1,0 +1,44 @@
+後端
+1. 安装Java 17
+2. JAR 包(就是java包內的全部東西)复制到新电脑的合适目录
+3  雙擊 start-server.vbs 即可啟動服務（無 CMD 視窗彈出，服務在背景執行）。
+
+前端
+1. 安裝nginx
+2. 找到 Nginx 的配置文件（Windows 是 D:\nginx\conf\nginx.conf)修改 server 块
+3. server {
+    listen 80; # 前端访问端口（比如用80，浏览器默认端口，不用输端口号）
+    server_name localhost;                  # 本地访问用localhost，局域网访问用新电脑的IP
+
+    # 1. 托管前端静态文件（把dist文件夹路径改对！）
+    root D:/前端打包后的dist文件夹路径;     # Windows路径用/或\\，比如 D:/project/dist
+    index index.html;                       # 默认访问index.html
+
+    # 2. 解决前端SPA路由刷新404问题（Vue/React项目必须加）
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 3. 反向代理，转发后端接口（后端地址改对！）
+    location /api {
+        proxy_pass http://localhost:8001;  # 后端启动后的地址
+        proxy_set_header Host $host;       # 保留请求头，避免后端拿不到真实地址
+    }
+   }
+4. cd到D:\nginx，执行 start nginx.exe
+
+
+數據庫設定
+spring.application.name=hlss_java
+
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+spring.datasource.url=jdbc:mysql://localhost:3306/hlss
+
+spring.datasource.username=root
+
+spring.datasource.password=1234
+
+注意事項:
+1. printer的名字必須改為 XP-80C1
+2. 打開系統 -> 系統資訊 -> 進階系統設定 -> 環境變數 -> 在系統變數中找到path按編輯 -> 把chromedriver路徑放進去 如( D:\hlss\chromedriver-win64D)
