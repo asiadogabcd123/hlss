@@ -3,10 +3,9 @@
     <!-- 頂部操作欄 -->
     <div class="scanner-header">
       <div class="header-content">
-
       </div>
       
-      <!-- 添加身份證取件切換按鈕 -->
+      <!-- 身份證取件切換按鈕 -->
       <div class="mode-toggle">
         <button 
           class="toggle-btn" 
@@ -39,14 +38,13 @@
           </div>
           <div class="scan-instruction">
             <p>{{ scanGuideText }}</p>
-            <small>點擊掃描區域激活掃描器</small>
+            <small>點擊掃描區域激活掃描器，請掃描客人的取件憑證二維碼</small>
           </div>
           <input
             type="text"
             class="scanner-input"
             v-model="scanInput"
             @keyup.enter="handleScan"
-            @input="handleInput"
             ref="scannerInput"
             autocomplete="off"
             inputmode="text"
@@ -89,7 +87,6 @@
               class="scanner-input"
               v-model="scanInput"
               @keyup.enter="handleIdCardScan"
-              @input="handleInput"
               ref="scannerInputIdCard"
               autocomplete="off"
               inputmode="text"
@@ -107,7 +104,7 @@
                 <i class="fas fa-ticket-alt"></i>
                 <span>客人取件憑證</span>
               </div>
-              <div class="item-detail">行李ID: {{ customerTicket?.luggageId }}</div>
+              <div class="item-detail">行李ID: {{ customerTicket?.luggageId }} | 客人: {{ luggageOrder?.guestName }}</div>
             </div>
             <div class="history-item" v-if="hasScannedLuggageTag">
               <div class="item-type luggage">
@@ -126,9 +123,9 @@
           </div>
 
           <!-- 匹配狀態 -->
-          <div class="match-result" v-if="hasScannedBoth">
-            <div class="result-indicator" :class="matchSuccess ? 'success' : 'error'">
-              <i class="fas" :class="matchSuccess ? 'fa-check-circle' : 'fa-times-circle'"></i>
+          <div class="match-result" v-if="hasScannedCustomerTicket || (idCardNumber && hasScannedLuggageTag)">
+            <div class="result-indicator success">
+              <i class="fas fa-check-circle"></i>
               <span>{{ matchResultText }}</span>
             </div>
           </div>
@@ -147,8 +144,9 @@
           <div class="card-body">
             <div class="empty-state" v-if="!hasScannedCustomerTicket && !hasScannedLuggageTag && !idCardNumber">
               <i class="fas fa-id-card-alt"></i>
-              <h4>請先掃描客人取件憑證或輸入身份證</h4>
-              <p>掃描流程：1. 掃客人二維碼/輸入身份證 → 2. 掃行李二維碼 → 3. 工作人員確認取件</p>
+              <h4>請先選擇取件方式</h4>
+              <p>二維碼取件：掃描客人取件憑證 → 確認取件</p>
+              <p>身份證取件：輸入身份證 → 掃描行李標籤 → 確認取件</p>
             </div>
 
             <div class="order-details" v-if="luggageOrder">
@@ -258,7 +256,7 @@
 import luggageApi from '@/api/luggage'
 
 export default {
-  name: 'ModernScanner',
+  name: 'LuggagePickupSystem',
   data() {
     return {
       // 掃描模式
@@ -302,40 +300,21 @@ export default {
     }
   },
   computed: {
-    // 是否已掃描兩個二維碼或身份證+行李標籤
-    hasScannedBoth() {
-      return (this.hasScannedCustomerTicket || this.idCardNumber) && this.hasScannedLuggageTag;
+    // 是否已完成必要的掃描
+    hasScannedEnough() {
+      return this.useIdCardMode 
+        ? (this.idCardNumber && this.hasScannedLuggageTag) 
+        : this.hasScannedCustomerTicket;
     },
     
-    // 行李ID是否匹配
-    matchSuccess() {
-      if (!this.luggageTag) return false;
-      
-      // 如果是身份證模式，只要行李標籤掃描成功就視為匹配
-      if (this.useIdCardMode && this.idCardNumber) {
-        return true;
-      }
-      
-      // 如果是二維碼模式，需要比對兩個二維碼的行李ID
-      if (this.customerTicket && this.luggageTag) {
-        return String(this.customerTicket.luggageId) === String(this.luggageTag.luggageId);
-      }
-      
-      return false;
-    },
-    
-    // 掃描區引導文字
+    // 二維碼模式掃描引導文字
     scanGuideText() {
       if (this.luggageOrder?.status === 'RETRIEVED') {
         return '此訂單已完成取件，可點擊「重新掃描」開始新流程';
       } else if (!this.hasScannedCustomerTicket) {
         return '請掃描客人的取件憑證二維碼';
-      } else if (!this.hasScannedLuggageTag) {
-        return `請掃描對應的行李標籤（行李ID: ${this.customerTicket?.luggageId}）`;
       } else {
-        return this.matchSuccess 
-          ? '行李ID匹配成功，請確認取件' 
-          : '行李ID不匹配，請重新掃描';
+        return `已識別行李ID: ${this.customerTicket?.luggageId}，請確認取件`;
       }
     },
     
@@ -355,33 +334,30 @@ export default {
     // 匹配結果文字
     matchResultText() {
       if (this.useIdCardMode) {
-        return '身份證與行李標籤已準備就緒';
+        return '身份證與行李標籤已驗證，可進行取件';
       }
-      return this.matchSuccess ? '行李ID配對成功' : '行李ID不匹配';
+      return '客人取件憑證已驗證，可進行取件';
     },
-    
-
     
     // 掃描狀態類別
     scanStatus() {
       if (this.luggageOrder?.status === 'RETRIEVED') return 'completed';
-      if (this.hasScannedBoth) return this.matchSuccess ? 'success' : 'error';
-      if (this.hasScannedCustomerTicket || this.idCardNumber) return 'scanning';
+      if (this.hasScannedEnough) return 'success';
+      if (this.idCardNumber || this.hasScannedCustomerTicket) return 'scanning';
       return 'idle';
     },
     
     // 掃描圖標類別
     scanIconClass() {
       if (this.luggageOrder?.status === 'RETRIEVED') return 'fas fa-check-circle completed';
-      if (this.hasScannedBoth) return this.matchSuccess ? 'fas fa-check-circle success' : 'fas fa-times-circle error';
-      if (this.hasScannedCustomerTicket || this.idCardNumber) return 'fas fa-qrcode scanning';
+      if (this.hasScannedEnough) return 'fas fa-check-circle success';
+      if (this.idCardNumber || this.hasScannedCustomerTicket) return 'fas fa-qrcode scanning';
       return 'fas fa-camera idle';
     },
     
-    // 是否可完成取件（身份驗證+行李標籤+訂單存在+未取件）
+    // 是否可完成取件
     canRetrieve() {
-      return (this.hasScannedCustomerTicket || this.idCardNumber) && 
-             this.hasScannedLuggageTag && 
+      return this.hasScannedEnough && 
              this.luggageOrder && 
              this.luggageOrder.status !== 'RETRIEVED';
     },
@@ -413,7 +389,7 @@ export default {
       return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     },
     
-    // 超期費用（基於行李數量 + 超期天數，與後端邏輯統一）
+    // 超期費用
     overdueFee() {
       if (this.luggageOrder?.status !== 'EXPIRED' || !this.luggageOrder.luggageCount) return 0;
       const overdueDays = Math.max(0, this.storageDays - 3);
@@ -498,7 +474,7 @@ export default {
       });
     },
     
-    // 顯示通知彈窗（3.5秒後自動關閉）
+    // 顯示通知彈窗
     showNotificationMessage(type, title, message) {
       this.notificationType = type;
       this.notificationTitle = title;
@@ -532,28 +508,6 @@ export default {
       }
     },
     
-    // 即時處理輸入（過濾中文字符）
-    handleInput() {
-      if (this.luggageOrder?.status === 'RETRIEVED' || this.isProcessing) return;
-      
-      const input = this.scanInput;
-      const filtered = input.replace(/[^\x20-\x7E]/g, '');
-      if (filtered !== input) {
-        this.scanInput = filtered;
-      }
-      
-      // 僅當輸入包含完整JSON且未處理時，觸發掃描
-      if (filtered.includes('{') && filtered.includes('}') && !this.isProcessing) {
-        setTimeout(() => {
-          if (this.useIdCardMode) {
-            this.handleIdCardScan();
-          } else {
-            this.handleScan();
-          }
-        }, 50);
-      }
-    },
-    
     // 處理掃描邏輯（二維碼模式）
     async handleScan() {
       if (!this.scanInput || this.luggageOrder?.status === 'RETRIEVED' || this.isProcessing) {
@@ -574,24 +528,12 @@ export default {
           throw new Error('二維碼格式無效，缺少「type」或「luggageId」');
         }
         
-        // 流程控制：先客人憑證，再行李標籤
-        if (!this.hasScannedCustomerTicket) {
-          if (scannedData.type !== 'customer_ticket') {
-            throw new Error('請先掃描「客人取件憑證」');
-          }
-          await this.processCustomerTicket(scannedData);
-        } else if (!this.hasScannedLuggageTag) {
-          if (scannedData.type !== 'luggage_tag') {
-            throw new Error('請接著掃描「行李標籤」');
-          }
-          await this.processLuggageTag(scannedData);
-        } else {
-          this.showNotificationMessage(
-            'info', 
-            '操作提示', 
-            '已完成所有掃描，請工作人員確認取件或點擊重新處理'
-          );
+        // 二維碼模式只需要掃描客人取件憑證
+        if (scannedData.type !== 'customer_ticket') {
+          throw new Error('請掃描「客人取件憑證」（二維碼類型需為 customer_ticket）');
         }
+        
+        await this.processCustomerTicket(scannedData);
         
       } catch (error) {
         console.error('掃描錯誤:', error);
@@ -644,14 +586,14 @@ export default {
         this.customerTicket = {
           ...ticketData,
           luggageId: luggageId,
-          checkinTime: ticketData.checkinTime.replace('t', 'T')
+          checkinTime: backendOrder.checkinTime
         };
         this.hasScannedCustomerTicket = true;
         this.scanSuccess = true;
         
-        this.verificationStatus = 'info';
-        this.verificationMessage = `已讀取客人憑證（行李ID: ${luggageId}）`;
-        this.showNotificationMessage('info', '請繼續操作', '請掃描對應的行李標籤完成匹配');
+        this.verificationStatus = 'success';
+        this.verificationMessage = `已成功識別客人憑證（行李ID: ${luggageId}），請確認取件`;
+        this.showNotificationMessage('success', '識別成功', '可進行取件確認');
         
       } catch (error) {
         this.verificationStatus = 'error';
@@ -664,7 +606,7 @@ export default {
       }
     },
     
-    // 處理行李標籤掃描
+    // 處理行李標籤掃描（身份證模式用）
     async processLuggageTag(tagData) {
       try {
         this.isProcessing = true;
@@ -674,32 +616,20 @@ export default {
           throw new Error('行李標籤中的 luggageId 不是有效數字');
         }
         
-        // 如果是身份證模式，需要先獲取訂單信息
-        if (this.useIdCardMode && !this.luggageOrder) {
-          const { data: backendOrder } = await luggageApi.getLuggageById(luggageId);
-          this.luggageOrder = backendOrder;
-        }
+        // 身份證模式下，獲取訂單信息
+        const { data: backendOrder } = await luggageApi.getLuggageById(luggageId);
+        this.luggageOrder = backendOrder;
         
         this.luggageTag = {
-          ...tagData,
-          luggageId: luggageId
+          type: tagData.type, 
+          luggageId: luggageId 
         };
         this.hasScannedLuggageTag = true;
         this.scanSuccess = true;
         
-        if (this.matchSuccess) {
-          this.verificationStatus = 'success';
-          this.verificationMessage = '行李標籤掃描成功，請確認取件';
-          if( this.luggageOrder?.status === 'RETRIEVED'){
-            this.verificationMessage = '行李標籤掃描成功，但該訂單已完成取件';
-          }
-          this.showNotificationMessage('success', '掃描成功', '行李標籤已掃描，等待確認取件');
-        } else {
-          this.verificationStatus = 'error';
-          this.verificationMessage = '行李ID不匹配，請重新掃描正確的行李標籤';
-          this.showNotificationMessage('error', '配對失敗', 
-            `當前掃描ID: ${luggageId}`);
-        }
+        this.verificationStatus = 'success';
+        this.verificationMessage = '行李標籤掃描成功，請確認取件';
+        this.showNotificationMessage('success', '掃描成功', '可進行取件確認');
         
       } catch (error) {
         this.showNotificationMessage('error', '行李標籤處理失敗', error.message);
@@ -715,7 +645,7 @@ export default {
       
       try {
         const payload = {
-          scannedLuggage: [this.luggageTag?.luggageId],
+          scannedLuggage: [this.luggageTag?.luggageId || this.customerTicket?.luggageId],
           idCardNumber: this.useIdCardMode ? this.idCardNumber : null
         };
         
@@ -724,7 +654,7 @@ export default {
         if (data.success) {
           this.luggageOrder.status = 'RETRIEVED';
           this.verificationStatus = 'success';
-          this.verificationMessage = `訂單已標記為「已取件」}`;
+          this.verificationMessage = `訂單已標記為「已取件」`;
           this.showNotificationMessage(
             'success', 
             '取件完成', 
@@ -809,34 +739,6 @@ export default {
 
 .header-content i {
   font-size: 1.8rem;
-}
-
-.status-indicator {
-  margin-left: 16px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.status-indicator.idle {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.status-indicator.scanning {
-  background: #3498db;
-}
-
-.status-indicator.success {
-  background: #2ecc71;
-}
-
-.status-indicator.error {
-  background: #e74c3c;
-}
-
-.status-indicator.completed {
-  background: #9b59b6;
 }
 
 .mode-toggle {
@@ -1026,20 +928,6 @@ export default {
   outline: none;
   border-color: #3498db;
   box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
-}
-
-.id-instruction {
-  margin-top: 15px;
-  padding: 10px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  text-align: center;
-}
-
-.id-instruction p {
-  margin: 0;
-  color: #7f8c8d;
-  font-size: 0.9rem;
 }
 
 .scan-history {

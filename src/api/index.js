@@ -1,8 +1,10 @@
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 
+const baseURL = process.env.NODE_ENV === 'development' ? 'http://192.168.28.10:8001/api':'/api';
+
 const api = axios.create({
-  baseURL:  'http://192.168.28.10:8001/api',
+  baseURL:  baseURL,
   timeout: 10000,
   withCredentials: false,
   headers: {

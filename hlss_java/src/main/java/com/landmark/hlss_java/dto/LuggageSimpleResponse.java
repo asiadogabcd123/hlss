@@ -17,4 +17,7 @@ public class LuggageSimpleResponse {
     private LocalDateTime checkoutTime; // 新增：取件时间
     private String idNumber; // 新增：身份证号
     private String status; // 行李状态（STORED/PICKED_UP等）
+    private String storageLocation;
+    private String remark;
+
 }

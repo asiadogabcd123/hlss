@@ -10,18 +10,18 @@
       <div class="tabs">
         <button 
           class="tab-btn" 
-          :class="{ 'active': activeTab === 'management' }"
-          @click="handleTabChange('management')" 
-        >
-          <i class="fas fa-qrcode"></i> 標籤管理
-        </button>
-        <button 
-          class="tab-btn" 
           :class="{ 'active': activeTab === 'scanner' }"
           @click="handleTabChange('scanner')" 
         >
           <i class="fas fa-camera"></i> 掃描取件
         </button>
+        <button 
+        class="tab-btn" 
+        :class="{ 'active': activeTab === 'management' }"
+        @click="handleTabChange('management')" 
+      >
+        <i class="fas fa-qrcode"></i> 標籤管理
+      </button>
       </div>
 
       <!-- 導入標籤管理組件 (QrBatch.vue) -->
@@ -73,7 +73,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'  // 移除了未使用的computed和watch
+import { ref, onMounted } from 'vue'  
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-tw'
 import luggageApi from '@/api/luggage'
@@ -94,7 +94,7 @@ export default {
   setup() {
     // 共用狀態
     const loading = ref(false)
-    const activeTab = ref('management') // 默認為標籤管理
+    const activeTab = ref('scanner') // 默認為標籤管理
     const today = ref(dayjs().format('YYYY-MM-DD'))
     
     // 標籤管理相關狀態
@@ -142,11 +142,6 @@ export default {
       }
     }
     
-    // 移除了未使用的goToHome方法
-    
-    // 移除了未使用的formatDateTime方法
-    
-    // 移除了未使用的formatDate方法
     
     const showNotificationMessage = (type, title, message) => {
       notificationType.value = type

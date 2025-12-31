@@ -1,14 +1,25 @@
-// @/api/luggage.js
 import api from './index'
 
 console.log('API 實例是否有效:', api)  
 console.log('BaseURL:', api.defaults.baseURL)  
+
+// 設置認證Token
+export const setAuthToken = (token) => {
+  if (token) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  } else {
+    delete api.defaults.headers.common['Authorization']
+  }
+}
 
 /**
  * 行李管理相關API
  * 包含寄存、查詢、取件等所有請求方法
  */
 export default {
+  // 設置認證Token
+  setAuthToken,
+  
   /**
    * 創建行李寄存記錄
    * @param {Object} payload - 寄存信息
@@ -79,25 +90,27 @@ export default {
   },
   
   /**
-    * 新增：查詢指定日期的「今日寄存」記錄（專用API）
-    * @param {string} date - 查詢日期（格式YYYY-MM-DD）
-    * @returns {Promise} - 今日寄存列表
-  */
-  getTodayStoredLuggage(date) {
+   * 查詢今日寄存記錄（只查當天）
+   * @returns {Promise} - 今日寄存列表
+   */
+  getTodayStoredLuggage() {
+    // 前端強制使用當天日期
+    const today = new Date().toISOString().split('T')[0]
     return api.get('/luggage/today-stored', {
-      params: { date: date.trim() }  // 傳遞日期參數
+      params: { date: today }
     })
   },
   
 
   /**
-   * 新增：查詢指定日期的「今日取件」記錄（專用API）
-   * @param {string} date - 查詢日期（格式YYYY-MM-DD）
+   * 查詢今日取件記錄（只查當天）
    * @returns {Promise} - 今日取件列表
    */
-  getTodayRetrievedLuggage(date) {
+  getTodayRetrievedLuggage() {
+    // 前端強制使用當天日期
+    const today = new Date().toISOString().split('T')[0]
     return api.get('/luggage/today-retrieved', {
-      params: { date: date.trim() }
+      params: { date: today }
     })
   },
 
@@ -135,6 +148,14 @@ export default {
     return api.put(`/luggage/${id}/mark-printed`)
   },
 
+  /**
+   * 請求後端打印憑證（新增接口）
+   * @param {number} id - 行李ID
+   * @returns {Promise} - 打印結果Promise
+   */
+  printVoucher(id) {
+    return api.post(`/luggage/${id}/print-voucher`)
+  },
   
   /**
    * 完成取件操作
@@ -147,10 +168,10 @@ export default {
   },
   
   /**
-  * 將過期行李標記為已刪除狀態（僅更新狀態）
-  * @param {number} id - 行李ID
-  * @returns {Promise} - 請求Promise
-  */
+   * 將過期行李標記為已刪除狀態（僅更新狀態）
+   * @param {number} id - 行李ID
+   * @returns {Promise} - 請求Promise
+   */
   markAsDeleted(id) {
     return api.put(`/luggage/mark-delete/${id}`)
   },
@@ -162,5 +183,29 @@ export default {
    */
   getLuggageByTag(tag) {
     return api.get(`/luggage/tag/${tag}`)
+  },
+
+  /**
+   * 查詢指定時間段的寄存記錄（歷史記錄）
+   * @param {string} startDate - 開始日期（YYYY-MM-DD）
+   * @param {string} endDate - 結束日期（YYYY-MM-DD）
+   * @returns {Promise} - 寄存記錄列表
+   */
+  getHistoricalStored(startDate, endDate) {
+    return api.get('/luggage/history/stored', {
+      params: { startDate, endDate }
+    })
+  },
+
+  /**
+   * 查詢指定時間段的取件記錄（歷史記錄）
+   * @param {string} startDate - 開始日期（YYYY-MM-DD）
+   * @param {string} endDate - 結束日期（YYYY-MM-DD）
+   * @returns {Promise} - 取件記錄列表
+   */
+  getHistoricalRetrieved(startDate, endDate) {
+    return api.get('/luggage/history/retrieved', {
+      params: { startDate, endDate }
+    })
   }
 }

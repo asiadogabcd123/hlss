@@ -8,4 +8,7 @@ public class LuggageRequest {
     private String phone;
     private String roomNumber;
     private Integer luggageCount;
+    private String storageLocation;
+    private String remark;
+
 }

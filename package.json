@@ -25,7 +25,8 @@
     "qrcode-generator": "^2.0.4",
     "qrcode.vue": "^3.6.0",
     "vue": "^3.2.13",
-    "vue-router": "^4.5.1"
+    "vue-router": "^4.5.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@babel/core": "^7.12.16",

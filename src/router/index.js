@@ -58,12 +58,8 @@ const routes = [
   {
     path: '/guest/access',
     component: () => import('@/views/guest/Access.vue')
-  },
-  {
-    path: '/guest/qr/:id',
-    component: () => import('@/views/guest/QRDisplay.vue'),
-    props: true
   }
+
 ]
 
 const router = createRouter({

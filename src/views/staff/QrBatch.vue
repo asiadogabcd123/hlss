@@ -12,7 +12,7 @@
               type="date" 
               id="date-filter" 
               v-model="selectedDate"
-              @change="loadLuggageData"
+              @change="handleDateChange"
               :max="today" 
             >
             <div class="quick-dates">
@@ -44,10 +44,10 @@
 
         <!-- 待打印行李列表 -->
         <div class="list-section">
-          <h2><i class="fas fa-print"></i> 待打印行李標籤</h2>
-          <div v-if="pendingLuggage.length === 0" class="no-data">
+          <h2><i class="fas fa-print"></i> 待列印行李標籤</h2>
+          <div v-if="pendingLuggage.length === 0 && !loading" class="no-data">
             <i class="fas fa-calendar-times"></i> 
-            {{ selectedDate ? '該日期無待打印行李' : '暫無待打印行李' }}
+            {{ selectedDate ? '該日期無待列印行李' : '暫無待列印行李' }}
           </div>
           <div v-else>
             <div v-for="dateGroup in groupedPendingLuggage" :key="dateGroup.date">
@@ -62,12 +62,15 @@
                 >
                   <div class="luggage-header">
                     <span class="badge new">新</span>
-                    <strong>LUG-{{ luggage.id }}</strong>
+                    <strong>{{ luggage.id }}</strong>
                   </div>
                   <div class="luggage-body">
                     <p><i class="fas fa-user"></i> {{ luggage.guestName }}</p>
                     <p><i class="fas fa-phone"></i> ***-****-{{ getPhoneLast4(luggage.phone) }}</p>
+                    <p><i class="fas fa-building"></i> 房間號：{{ luggage.roomNumber || '未填寫' }}</p>
+                    <p><i class="fas fa-warehouse"></i> 存儲區域：{{ luggage.storageLocation || '未指定' }}</p>
                     <p><i class="fas fa-suitcase"></i> {{ luggage.luggageCount }} 件行李</p>
+                    <p><i class="fas fa-sticky-note"></i> 備註：{{ luggage.remark || '無' }}</p>
                     <p><i class="fas fa-clock"></i> {{ formatTime(luggage.checkinTime) }}</p>
                   </div>
                 </div>
@@ -78,10 +81,10 @@
 
         <!-- 可重新打印行李列表 -->
         <div class="list-section">
-          <h2><i class="fas fa-redo"></i> 可重新打印行李標籤</h2>
-          <div v-if="printedLuggage.length === 0" class="no-data">
+          <h2><i class="fas fa-redo"></i> 可重新列印行李標籤</h2>
+          <div v-if="printedLuggage.length === 0 && !loading" class="no-data">
             <i class="fas fa-calendar-times"></i> 
-            {{ selectedDate ? '該日期無可重新打印行李' : '暫無可重新打印行李' }}
+            {{ selectedDate ? '該日期無可重新列印行李' : '暫無可重新列印行李' }}
           </div>
           <div v-else>
             <div v-for="dateGroup in groupedPrintedLuggage" :key="dateGroup.date">
@@ -96,12 +99,15 @@
                 >
                   <div class="luggage-header">
                     <span class="badge reprinted">重印</span>
-                    <strong>LUG-{{ luggage.id }}</strong>
+                    <strong>{{ luggage.id }}</strong>
                   </div>
                   <div class="luggage-body">
                     <p><i class="fas fa-user"></i> {{ luggage.guestName }}</p>
                     <p><i class="fas fa-phone"></i> ***-****-{{ getPhoneLast4(luggage.phone) }}</p>
+                    <p><i class="fas fa-building"></i> 房間號：{{ luggage.roomNumber || '未填寫' }}</p>
+                    <p><i class="fas fa-warehouse"></i> 存儲區域：{{ luggage.storageLocation || '未指定' }}</p>
                     <p><i class="fas fa-suitcase"></i> {{ luggage.luggageCount }} 件行李</p>
+                    <p><i class="fas fa-sticky-note"></i> 備註：{{ luggage.remark || '無' }}</p>
                     <p><i class="fas fa-clock"></i> {{ formatTime(luggage.checkinTime) }}</p>
                   </div>
                 </div>
@@ -115,17 +121,20 @@
       <div class="preview-sidebar" :class="{ 'has-content': luggageInfo }">
         <div v-if="luggageInfo" class="preview-content">
           <div class="preview-header">
-            <h2><i class="fas fa-tags"></i> 行李標籤預覽 - LUG-{{ luggageInfo.id }}</h2>
+            <h2><i class="fas fa-tags"></i> 行李標籤預覽 - {{ luggageInfo.id }}</h2>
             <div class="guest-info">
               <p><i class="fas fa-user"></i> {{ luggageInfo.guestName }}</p>
               <p><i class="fas fa-phone"></i> ***-****-{{ luggageInfo.phoneLast4 }}</p>
+              <p><i class="fas fa-building"></i> 房間號：{{ luggageInfo.roomNumber || '未填寫' }}</p>
+              <p><i class="fas fa-warehouse"></i> 存儲區域：{{ luggageInfo.storageLocation || '未指定' }}</p>
               <p><i class="fas fa-suitcase"></i> {{ luggageInfo.luggageCount }} 件行李</p>
+              <p><i class="fas fa-sticky-note"></i> 備註：{{ luggageInfo.remark || '無' }}</p>
             </div>
           </div>
           
           <div class="qr-grid">
             <button @click="printTickets" class="print-btn">
-              <i class="fas fa-print"></i> 打印兩種標籤
+              <i class="fas fa-print"></i> 列印兩種標籤
             </button>
 
             <div class="qr-card">
@@ -138,7 +147,7 @@
             <div class="qr-card">
               <img :src="luggageQRCode" alt="行李標籤二維碼">
               <div class="qr-meta">
-                <p>行李標籤</p>
+                <p>行李存放標籤</p>
               </div>
             </div>
           </div>
@@ -150,24 +159,17 @@
         </div>
       </div>
     </div>
-    
-    <!-- 加載指示器 -->
-    <div v-if="loading" class="loading-overlay">
-      <div class="loading-spinner">
-        <i class="fas fa-spinner fa-spin"></i>
-        <p>加載中，請稍候...</p>
-      </div>
-    </div>
+
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-tw'
 import luggageApi from '@/api/luggage'
 
-// 设置dayjs本地化
+// 設置dayjs本地化
 dayjs.locale('zh-tw')
 
 export default {
@@ -182,6 +184,8 @@ export default {
     const selectedDate = ref('')
     const loading = ref(false)
     const today = ref(dayjs().format('YYYY-MM-DD'))
+    const refreshTimer = ref(null) // 定時器實例
+    const isRequesting = ref(false) // 防止重複請求標記
 
     const quickDates = ref([
       { label: '今天', value: today.value, type: 'day' },
@@ -202,7 +206,7 @@ export default {
       const date = dayjs(selectedDate.value)
       const today = dayjs()
       
-      // 根据日期类型返回不同格式
+      // 根據日期類型返回不同格式
       if (date.isSame(today, 'day')) {
         return '今天 (' + date.format('MM/DD') + ')'
       } 
@@ -299,21 +303,36 @@ export default {
     // 重置日期篩選
     const resetDateFilter = () => {
       selectedDate.value = ''
-      loadLuggageData()
+      handleDateChange()
     }
 
     // 選擇快捷日期
     const selectQuickDate = (date) => {
       selectedDate.value = date
-      loadLuggageData()
+      handleDateChange()
     }
 
-    // 從後端加載行李數據
-    const loadLuggageData = async () => {
+    // 日期變更時處理
+    const handleDateChange = () => {
+      // 立即請求新數據
+      fetchLuggageData()
+      // 重置定時器，確保按新條件刷新
+      restartRefreshTimer()
+    }
+
+    // 核心方法：請求待列印和可重列印數據（考慮當前篩選條件）
+    const fetchLuggageData = async () => {
+      // 防止重複請求
+      if (isRequesting.value) {
+        console.log('已有請求在處理中，跳過本次定時請求')
+        return
+      }
+      
       try {
+        isRequesting.value = true
         loading.value = true
         
-        // 準備API參數
+        // 構建符合當前篩選條件的請求參數
         const params = {}
         
         if (selectedDate.value) {
@@ -327,24 +346,57 @@ export default {
           }
         }
         
-        // 使用封裝的API方法
+        console.log('發送數據請求，參數:', params)
+        
+        // 併發請求待列印和可重列印數據
         const [pendingRes, printedRes] = await Promise.all([
           luggageApi.getPendingForQR(params),
           luggageApi.getPrintedLuggage(params)
         ])
         
-        pendingLuggage.value = pendingRes.data
-        printedLuggage.value = printedRes.data
+        // 檢查返回數據是否為數組
+        if (!Array.isArray(pendingRes.data)) {
+          console.error('待列印數據格式錯誤，期望數組:', pendingRes.data)
+          return
+        }
+        
+        if (!Array.isArray(printedRes.data)) {
+          console.error('可重列印數據格式錯誤，期望數組:', printedRes.data)
+          return
+        }
+        
+        // 強制更新數組以觸發Vue重新渲染
+        pendingLuggage.value = [...pendingRes.data]
+        printedLuggage.value = [...printedRes.data]
+        
+        console.log('數據刷新完成 - 待列印:', pendingLuggage.value.length, '可重列印:', printedLuggage.value.length)
         
       } catch (error) {
-        console.error('加載行李數據失敗:', error)
-        alert('獲取行李數據失敗，請檢查網絡連接或稍後重試')
+        console.error('數據請求失敗:', error)
       } finally {
         loading.value = false
+        isRequesting.value = false
       }
     }
 
-    // 加載指定行李（预览）
+    // 重置並啟動定時器
+    const restartRefreshTimer = () => {
+      // 清除現有定時器
+      if (refreshTimer.value) {
+        clearInterval(refreshTimer.value)
+        console.log('已清除舊定時器')
+      }
+      
+      // 設置新的3秒定時器
+      refreshTimer.value = setInterval(() => {
+        console.log('定時器觸發，刷新數據')
+        fetchLuggageData()
+      }, 3000)
+      
+      console.log('已啟動新定時器，每3秒刷新一次')
+    }
+
+    // 加載指定行李（預覽）- 新增备注字段
     const loadLuggage = async (luggageId) => {
       try {
         loading.value = true
@@ -353,16 +405,19 @@ export default {
         const detailRes = await luggageApi.getLuggageById(luggageId)
         const luggageDetail = detailRes.data
         
-        // 更新UI數據
+        // 更新UI數據：新增 remark（备注）字段
         luggageInfo.value = {
           id: luggageDetail.id,
           guestName: luggageDetail.guestName,
-          phoneLast4: getPhoneLast4(luggageDetail.phone), // 使用統一方法提取
+          phoneLast4: getPhoneLast4(luggageDetail.phone),
           luggageCount: luggageDetail.luggageCount,
-          checkinTime: luggageDetail.checkinTime
+          checkinTime: luggageDetail.checkinTime,
+          roomNumber: luggageDetail.roomNumber || '', // 房間號（可能為空）
+          storageLocation: luggageDetail.storageLocation || '', // 存儲區域（可能為空）
+          remark: luggageDetail.remark || '' // 新增：备注（可能為空）
         };
         
-        // 生成两种二维码
+        // 生成兩種二維碼（包含新字段）
         await generateQRCodes(luggageDetail)
         
       } catch (error) {
@@ -383,6 +438,7 @@ export default {
       }
     }
 
+    // 生成二維碼（包含存儲區域與房間號）
     const generateQRCodes = (luggageDetail) => {
       try {
         // 直接使用前端生成二維碼
@@ -393,23 +449,16 @@ export default {
       }
     }
 
-    // 前端生成二維碼
     const generateFrontendQRCodes = (luggageDetail) => {
-      // 客人取件憑證二維碼內容
+      // 二維碼內容可選：是否包含备注（这里暂不包含，如需包含可添加 remark 字段）
       const customerContent = JSON.stringify({
         type: "customer_ticket",
         luggageId: luggageDetail.id,
-        guestName: luggageDetail.guestName,
-        checkinTime: luggageDetail.checkinTime
       });
       
       const luggageContent = JSON.stringify({
         type: "luggage_tag",
         luggageId: luggageDetail.id,
-        guestName: luggageDetail.guestName,
-        luggageCount: luggageDetail.luggageCount,
-        checkinTime: luggageDetail.checkinTime,
-        phoneLast4: getPhoneLast4(luggageDetail.phone) // 使用統一方法提取
       });
       
       const qrcode = require('qrcode-generator');
@@ -417,41 +466,39 @@ export default {
       const customerQr = qrcode(0, 'M');
       customerQr.addData(customerContent);
       customerQr.make();
-      customerQRCode.value = customerQr.createDataURL(4);
+      customerQRCode.value = customerQr.createDataURL(6);
       
       // 生成行李二維碼
       const luggageQr = qrcode(0, 'M');
       luggageQr.addData(luggageContent);
       luggageQr.make();
-      luggageQRCode.value = luggageQr.createDataURL(4);
+      luggageQRCode.value = luggageQr.createDataURL(6);
     }
 
-    // 外部服務生成二維碼（備用方案）
+    // 外部服務生成二維碼（備用方案，包含新字段）
     const generateExternalServiceQRCodes = (luggageDetail) => {
-      // 客人取件憑證二維碼內容
+      // 客人取件憑證二維碼內容（可選添加 remark）
       const customerContent = JSON.stringify({
         type: "customer_ticket",
         luggageId: luggageDetail.id,
         guestName: luggageDetail.guestName,
-        checkinTime: luggageDetail.checkinTime
+        remark: luggageDetail.remark || '無' // 可選：加入备注
       });
       
-      // 行李標籤二維碼內容
+      // 行李標籤二維碼內容（可選添加 remark）
       const luggageContent = JSON.stringify({
         type: "luggage_tag",
         luggageId: luggageDetail.id,
         guestName: luggageDetail.guestName,
-        luggageCount: luggageDetail.luggageCount,
-        checkinTime: luggageDetail.checkinTime,
-        phoneLast4: getPhoneLast4(luggageDetail.phone) // 使用統一方法提取
+        remark: luggageDetail.remark || '無' // 可選：加入备注
       });
       
       // 使用外部服務生成二維碼圖片
-      customerQRCode.value = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(customerContent)}`;
-      luggageQRCode.value = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(luggageContent)}`;
+      customerQRCode.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(customerContent)}`;
+      luggageQRCode.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(luggageContent)}`;
     }
 
-    // 打印兩種小票
+    // 打印兩種小票（新增备注显示）
     const printTickets = async () => {
       try {
         const luggageId = luggageInfo.value.id;
@@ -476,7 +523,7 @@ export default {
           }
         }
         
-        // 生成兩種小票的HTML內容
+        // 生成兩種小票的HTML內容（新增备注）
         const customerTicket = generateCustomerTicket();
         const luggageTag = generateLuggageTag();
         
@@ -489,7 +536,7 @@ export default {
           <!DOCTYPE html>
           <html>
           <head>
-            <title>打印行李標籤</title>
+            <title>列印行李標籤</title>
             <style>
               @page { size: auto; margin: 5mm; }
               body { font-family: Arial, sans-serif; }
@@ -514,19 +561,29 @@ export default {
                 margin-bottom: 8px;
               }
               .ticket-info {
-                font-size: 14px;
-                margin: 5px 0;
+                font-size: 20px;
+                margin: 4px 0;
                 text-align: left;
               }
               .ticket-qr {
-                width: 100px;
-                height: 100px;
-                margin: 10px auto;
+                width: 180px;
+                height: 180px;
               }
               .terms {
-                font-size: 10px;
+                font-size: 13px;
                 text-align: left;
                 margin-top: 10px;
+              }
+              .ticket-info.large-print {
+                font-size: 30pt; 
+                font-weight: bold;
+                margin: 10px 0; 
+                word-break: break-all; 
+              }
+              .field-label {
+                color: #222;
+                min-width: 90px;
+                display: inline-block;
               }
             </style>
           </head>
@@ -547,13 +604,18 @@ export default {
         };
         
       } catch (error) {
-        console.error('打印失敗:', error)
-        alert('打印失敗，請稍後重試')
+        console.error('列印失敗:', error)
+        alert('列印失敗，請稍後重試')
       }
     }
 
-    // 生成客人小票HTML
+    // 生成客人小票HTML（新增备注）
     const generateCustomerTicket = () => {
+      // 處理空值顯示
+      const roomNumber = luggageInfo.value.roomNumber || '未填寫';
+      const storageLocation = luggageInfo.value.storageLocation || '未指定';
+      const remark = luggageInfo.value.remark || '無'; // 处理备注空值
+      
       return `
         <div class="ticket">
           <div class="ticket-header">
@@ -561,47 +623,108 @@ export default {
             <div>行李寄存憑證</div>
           </div>
           <div class="divider"></div>
-          <div class="ticket-info">客人姓名: ${luggageInfo.value.guestName}</div>
-          <div class="ticket-info">手機尾號: ${luggageInfo.value.phoneLast4}</div>
-          <div class="ticket-info">行李ID: LUG-${luggageInfo.value.id}</div>
-          <div class="ticket-info">行李件數: ${luggageInfo.value.luggageCount}</div>
-          <div class="ticket-info">寄存時間: ${new Date(luggageInfo.value.checkinTime).toLocaleString()}</div>
+          <div class="ticket-info large-print">
+            <span class="field-label">行李ID:</span> 
+            <span>${luggageInfo.value.id}</span>
+          </div>
           <div class="ticket-info">
-            <span class="signature-label">客戶簽名:</span>
+            <span class="field-label">客人姓名:</span> 
+            <span>${luggageInfo.value.guestName}</span>
+          </div>
+          <div class="ticket-info">
+            <span class="field-label">手機尾號:</span> 
+            <span>${luggageInfo.value.phoneLast4}</span>
+          </div>
+          <div class="ticket-info">
+            <span class="field-label">房間號:</span> 
+            <span>${roomNumber}</span>
+          </div>
+          <div class="ticket-info">
+            <span class="field-label">存儲區域:</span> 
+            <span>${storageLocation}</span>
+          </div>
+          <div class="ticket-info">
+            <span class="field-label">行李件數:</span>   
+            <span>${luggageInfo.value.luggageCount} </span>
+          </div>
+          <div class="ticket-info">
+            <span class="field-label">行李備註:</span> 
+            <span>${remark}</span>
+          </div>
+          <div class="ticket-info">
+            <span class="field-label">寄存時間:</span> 
+            <span>${dayjs(luggageInfo.value.checkinTime).format('YYYY-MM-DD HH:mm:ss')}</span>
+          </div>
+          <div class="ticket-info">
+            <span class="field-label">客戶簽名:</span>
+            <span style="border-bottom: 1px solid #333; width: 180px; display: inline-block; margin-left: 10px;"></span>
           </div>
           <img src="${customerQRCode.value}" alt="取件二維碼" class="ticket-qr">
           <div class="terms">
             <div><strong>服務條款:</strong></div>
-            <div>This is out policy to keep Hotel guest's luggage in our storeroom free of charge for no more than three days. we will levy a storage charge of MOP20.00 per day on each item thereafter until they are being claimed.</div>
-            <div>The Hotel will not be held responsible for any loss or damage of the luggage deposited or articles contained in them.</div>
-            <div>The Hotel reserves the right to dispose any unclaimed luggage held in our storage for more than FIFTEEN DAYS without any liability.</div>
-            <div>By using this service, guests acknowledge and agree to these terms.</div>
-            <div>本酒店可代客人免費存放行李在貯物室，為期不超過三天，如超過限期，本酒店將按日徵收每件澳門幣貳拾圓正作為貯存費，直至領回為止。</div>
-            <div>本酒店在任何情況下不負責行李之損壞或遺失。</div>
-            <div>所有寄存物件，如在十五天內無人認領，本酒店有權處理該物品且無須承擔任何賠償責任。</div>
-            <div>使用此服務即表示已閱讀並同意上述條款。</div>
+            <div>1.This is our policy to keep Hotel guest's luggage in our storeroom free of charge for no more than three days. We will levy a storage charge of MOP20.00 per day on each item thereafter until they are being claimed.</div>
+            <div>2.The Hotel will not be held responsible for any loss or damage of the luggage deposited or articles contained in them.</div>
+            <div>3.The Hotel reserves the right to dispose any unclaimed luggage held in our storage for more than FIFTEEN DAYS without any liability.</div>
+            <div>4.By using this service, guests acknowledge and agree to these terms.</div>
+            <div>1.本酒店可代客人免費存放行李在貯物室，為期不超過三天，如超過限期，本酒店將按日徵收每件澳門幣貳拾圓正作為貯存費，直至領回為止。</div>
+            <div>2.本酒店在任何情況下不負責行李之損壞或遺失。</div>
+            <div>3.所有寄存物件，如在十五天內無人認領，本酒店有權處理該物品且無須承擔任何賠償責任。</div>
+            <div>4.使用此服務即表示已閱讀並同意上述條款。</div>
           </div>
         </div>
       `;
     }
 
-    // 生成行李標籤HTML
+    // 生成行李標籤HTML（新增备注）
     const generateLuggageTag = () => {
+      // 處理空值顯示
+      const roomNumber = luggageInfo.value.roomNumber || '未填寫';
+      const storageLocation = luggageInfo.value.storageLocation || '未指定';
+      const remark = luggageInfo.value.remark || '無'; // 处理备注空值
+      
       return `
-        <div class="ticket">
-          <div class="ticket-header">
-            <img src="/images/new_orient_group.jpg" class="hotel-logo"> 
-            <div>行李存放標籤</div>
-          </div>
-          <div class="divider"></div>
-          <div class="ticket-info">行李ID: LUG-${luggageInfo.value.id}</div>
-          <div class="ticket-info">客人姓名: ${luggageInfo.value.guestName}</div>
-          <div class="ticket-info">行李件數: ${luggageInfo.value.luggageCount}</div>
-          <div class="ticket-info">寄存時間: ${new Date(luggageInfo.value.checkinTime).toLocaleString()}</div>
-          <img src="${luggageQRCode.value}" alt="行李二維碼" class="ticket-qr">
+      <div class="ticket">
+        <div class="ticket-header">
+          <img src="/images/new_orient_group.jpg" class="hotel-logo"> 
+          <div>行李存放標籤</div>
         </div>
+        <div class="divider"></div>
+        <div class="ticket-info large-print">
+          <span class="field-label">行李ID:</span> 
+          <span>${luggageInfo.value.id}</span>
+        </div>
+        <div class="ticket-info">
+          <span class="field-label">客人姓名:</span> 
+          <span>${luggageInfo.value.guestName}</span>
+        </div>
+        <div class="ticket-info">
+          <span class="field-label">房間號:</span> 
+          <span>${roomNumber}</span>
+        </div>
+        <div class="ticket-info">
+          <span class="field-label">存儲區域:</span> 
+          <span>${storageLocation}</span>
+        </div>
+        <div class="ticket-info">
+          <span class="field-label">行李件數:</span> 
+          <span>${luggageInfo.value.luggageCount} &nbsp&nbsp;</span>
+        </div>
+        <div class="ticket-info">
+          <span class="field-label">行李備註:</span> 
+          <span>${remark}</span>
+        </div>
+        <div class="ticket-info">
+          <span class="field-label">寄存時間:</span> 
+          <span>${dayjs(luggageInfo.value.checkinTime).format('YYYY-MM-DD HH:mm:ss')}</span>
+        </div>
+        <div class="ticket-info">
+          <span class="field-label">客戶簽名:</span>
+          <span style="border-bottom: 1px solid #333; width: 180px; display: inline-block; margin-left: 10px;"></span>
+        </div>
+        <img src="${luggageQRCode.value}" alt="行李二維碼" class="ticket-qr">
+      </div>
       `;
-    }
+    };
 
     // 監聽日期變化
     watch(selectedDate, (newDate) => {
@@ -611,10 +734,22 @@ export default {
       }
     })
 
+    // 組件初始化
     onMounted(() => {
       // 預設顯示今天的行李
       selectedDate.value = today.value
-      loadLuggageData()
+      // 初始加載數據
+      fetchLuggageData()
+      // 啟動3秒定時刷新
+      restartRefreshTimer()
+    })
+
+    // 組件銷毀時清除定時器，防止內存洩漏
+    onUnmounted(() => {
+      if (refreshTimer.value) {
+        clearInterval(refreshTimer.value)
+        console.log('組件銷毀，已清除定時器')
+      }
     })
     
     return {
@@ -631,22 +766,31 @@ export default {
       formattedSelectedDate,
       groupedPendingLuggage,
       groupedPrintedLuggage,
-      loadLuggageData,
       loadLuggage,
       printTickets,
       resetDateFilter,
       selectQuickDate,
+      handleDateChange,
       formatGroupDate,
       formatTime,
       formatDate,
-      getPhoneLast4 // 導出方法供模板使用
+      getPhoneLast4
     }
   }
 }
 </script>
 
 <style scoped>
-/* 全局變量 */
+/* 原有樣式不變，新增备注图标样式（可选，确保图标显示正常） */
+.luggage-body i.fa-sticky-note {
+  color: #f59e0b; /* 用黄色图标区分备注，与重印标签颜色一致 */
+}
+
+.guest-info i.fa-sticky-note {
+  color: #f59e0b;
+}
+
+/* 原有樣式保持不變 */
 :root {
   --primary: #2c5282;
   --primary-light: #4299e1;
@@ -673,7 +817,6 @@ body {
   min-height: 100vh;
 }
 
-/* 主容器 */
 .qr-batch-container {
   display: flex;
   flex-direction: column;
@@ -682,7 +825,6 @@ body {
   padding: 20px;
 }
 
-/* 主內容區布局 */
 .main-content {
   display: flex;
   flex: 1;
@@ -691,7 +833,6 @@ body {
   max-height: calc(100vh - 120px);
 }
 
-/* 左側列表容器 */
 .list-container {
   flex: 1;
   overflow-y: auto;
@@ -705,7 +846,6 @@ body {
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
 }
 
-/* 右側固定預覽區 */
 .preview-sidebar {
   width: 380px;
   border-radius: var(--border-radius);
@@ -723,7 +863,6 @@ body {
   border-left: 4px solid #6366f1;
 }
 
-/* 空預覽狀態樣式 */
 .empty-preview {
   display: flex;
   flex-direction: column;
@@ -750,7 +889,6 @@ body {
   line-height: 1.8;
 }
 
-/* 日期選擇器 */
 .date-selector {
   background: rgba(30, 41, 59, 0.6);
   border-radius: var(--border-radius);
@@ -827,7 +965,6 @@ body {
   margin-top: 10px;
 }
 
-/* 列表區域 */
 .list-section {
   background: rgba(30, 41, 59, 0.6);
   border-radius: var(--border-radius);
@@ -855,7 +992,6 @@ body {
   color: #818cf8;
 }
 
-/* 無數據提示 */
 .no-data {
   text-align: center;
   padding: 40px 20px;
@@ -874,7 +1010,6 @@ body {
   color: #475569;
 }
 
-/* 行李卡片網格 */
 .luggage-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -885,7 +1020,6 @@ body {
   padding-bottom: 10px;
 }
 
-/* 行李卡片 */
 .luggage-card {
   border: 1px solid var(--light-gray);
   border-radius: var(--border-radius);
@@ -956,7 +1090,6 @@ body {
   text-align: center;
 }
 
-/* 日期標題樣式 */
 .date-header {
   margin: 22px 0 16px;
   padding-bottom: 10px;
@@ -979,7 +1112,6 @@ body {
   border-radius: 3px;
 }
 
-/* 預覽內容 */
 .preview-content {
   padding: 22px;
   display: flex;
@@ -1008,7 +1140,8 @@ body {
 
 .guest-info {
   display: flex;
-  gap: 25px;
+  flex-direction: column;
+  gap: 8px;
   font-size: 1.05rem;
   background: rgba(30, 41, 59, 0.6);
   padding: 12px 18px;
@@ -1026,7 +1159,6 @@ body {
   font-weight: 500;
 }
 
-/* QR碼網格 */
 .qr-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1093,54 +1225,13 @@ body {
   gap: 8px;
 }
 
+
 .print-btn:hover {
   background: #6366f1;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
 
-/* 加載指示器 */
-.loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(15, 23, 42, 0.9);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.loading-spinner {
-  text-align: center;
-  background: rgba(30, 41, 59, 0.9);
-  padding: 50px;
-  border-radius: var(--border-radius);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-}
-
-.loading-spinner i {
-  font-size: 3.5rem;
-  color: #818cf8;
-  margin-bottom: 25px;
-  animation: spin 1.5s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-spinner p {
-  font-size: 1.3rem;
-  color: #e2e8f0;
-  font-weight: 500;
-}
-
-/* 快捷按鈕組 */
 .quick-dates {
   display: flex;
   gap: 10px;
@@ -1166,7 +1257,6 @@ body {
   border-color: #6366f1;
 }
 
-/* 響應式設計 */
 @media (max-width: 1200px) {
   .qr-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -1202,10 +1292,6 @@ body {
 }
 
 @media (max-width: 768px) {
-  .header h1 {
-    font-size: 1.5rem;
-  }
-  
   .date-selector {
     flex-direction: column;
     align-items: flex-start;

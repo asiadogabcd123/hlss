@@ -51,5 +51,8 @@ public class Luggage {
 
     private Boolean qrGenerated = false; // QR碼是否已生成
 
-    private String verificationCode; // 驗證碼（可選）
+    private String verificationCode; // 驗證碼（可選
+
+    private String remark;
+
 }

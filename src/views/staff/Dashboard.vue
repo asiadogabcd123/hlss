@@ -21,7 +21,7 @@
       <div class="stats-section">
         <h2 class="section-title"><i class="fas fa-chart-bar"></i> 行李統計概覽</h2>
         <div class="stats-grid">
-          <!-- 當前寄存卡片（可點擊查看詳情） -->
+          <!-- 當前寄存卡片 -->
           <div class="stat-card-wrapper" @click.stop="openDetailDialog('current')">
             <div class="card-overlay"></div>
             <StatCard 
@@ -35,7 +35,7 @@
               <i class="fas fa-angle-right"></i> 查看詳情
             </div>
           </div>
-          <!-- 今日寄存卡片（可點擊查看詳情） -->
+          <!-- 今日寄存卡片 -->
           <div class="stat-card-wrapper" @click.stop="openDetailDialog('todayIn')">
             <div class="card-overlay"></div>
             <StatCard 
@@ -49,7 +49,7 @@
               <i class="fas fa-angle-right"></i> 查看詳情
             </div>
           </div>
-          <!-- 今日取件卡片（可點擊查看詳情） -->
+          <!-- 今日取件卡片 -->
           <div class="stat-card-wrapper" @click.stop="openDetailDialog('todayOut')">
             <div class="card-overlay"></div>
             <StatCard 
@@ -63,10 +63,24 @@
               <i class="fas fa-angle-right"></i> 查看詳情
             </div>
           </div>
+          <!-- 歷史記錄卡片 -->
+          <div class="stat-card-wrapper" @click.stop="openDetailDialog('history')">
+            <div class="card-overlay"></div>
+            <StatCard 
+              icon="history" 
+              title="歷史記錄" 
+              color="#9b59b6" 
+              :loading="loading"
+              :style="{ height: '86px' }"  
+            />
+            <div class="view-detail-tip">
+              <i class="fas fa-angle-right"></i> 查詢歷史
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- 行李管理模塊（嵌入式） -->
+      <!-- 行李管理模塊 -->
       <div class="embedded-section">
         <LuggageManagement />
       </div>
@@ -75,24 +89,111 @@
     <!-- 統計詳情彈窗 -->
     <ElDialog
       v-model="detailDialogVisible"
-      :title="`${ getTypeLabel(currentDetailType)}行李詳情`"
+      :title="getDialogTitle()"
       :width="'90%'"
       :before-close="handleDialogClose"
       destroy-on-close
       draggable
       custom-class="enhanced-dialog"
     >
-      <!-- 彈窗頂部：搜尋與刷新 -->
+      <!-- 彈窗頂部：搜尋、日期篩選、狀態篩選與Excel匯出 -->
       <div class="detail-header">
         <div class="detail-filter-group">
           <!-- 關鍵字搜尋 -->
           <ElInput
             v-model="searchKeyword"
-            placeholder="輸入行李編號/使用者名稱搜尋..."
-            prefix-icon="Search"
+            placeholder="輸入行李編號/使用者名稱/存放位置搜尋..."
+            :prefix-icon="Search"
             :style="{ width: '300px', marginRight: '16px' }"
             class="enhanced-input"
           />
+          
+          <!-- 日期範圍選擇器（僅歷史記錄顯示） -->
+          <div v-if="currentDetailType === 'history'" class="date-filter-container">
+            <ElDatePicker
+              v-model="dateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="開始日期"
+              end-placeholder="結束日期"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
+              :shortcuts="dateShortcuts"
+              :style="{ width: '320px' }"
+              @change="handleFilterChange"
+              class="enhanced-datepicker"
+              popper-class="enhanced-datepicker-popper"
+              :clearable="false"
+            />
+            
+            <!-- 快捷日期按鈕組 -->
+            <div class="date-shortcut-buttons">
+              <ElButton 
+                size="mini" 
+                @click="setDateRange('today')"
+                :class="{ 'active': currentShortcut === 'today' }"
+              >
+                今天
+              </ElButton>
+              <ElButton 
+                size="mini" 
+                @click="setDateRange('yesterday')"
+                :class="{ 'active': currentShortcut === 'yesterday' }"
+              >
+                昨天
+              </ElButton>
+              <ElButton 
+                size="mini" 
+                @click="setDateRange('week')"
+                :class="{ 'active': currentShortcut === 'week' }"
+              >
+                本週
+              </ElButton>
+              <ElButton 
+                size="mini" 
+                @click="setDateRange('month')"
+                :class="{ 'active': currentShortcut === 'month' }"
+              >
+                本月
+              </ElButton>
+              <ElButton 
+                size="mini" 
+                @click="setDateRange('year')"
+                :class="{ 'active': currentShortcut === 'year' }"
+              >
+                本年
+              </ElButton>
+            </div>
+          </div>
+          
+          <!-- 行李狀態篩選（多選） -->
+          <ElSelect
+            v-if="currentDetailType === 'history'"
+            v-model="selectedStatus"
+            placeholder="選擇行李狀態"
+            :style="{ width: '250px', marginRight: '16px' }"
+            @change="handleFilterChange"
+            class="enhanced-select"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            clearable
+          >
+            <ElOption label="已寄存" value="stored" />
+            <ElOption label="已取件" value="retrieved" />
+            <ElOption label="已過期" value="expired" />
+          </ElSelect>
+          
+          <!-- Excel匯出按鈕 -->
+          <ElButton
+            type="success"
+            :icon="Download"
+            @click="exportToExcel"
+            :loading="exportLoading"
+            class="export-btn"
+          >
+            匯出Excel
+          </ElButton>
         </div>
       </div>
 
@@ -136,7 +237,22 @@
           </template>
         </ElTableColumn>
 
-        <!-- 電話（所有類型都顯示） -->
+        <!-- 存放位置 -->
+        <ElTableColumn
+          prop="storageLocation"
+          label="存放位置"
+          align="center"
+          min-width="160"
+        >
+          <template #default="scope">
+            <div class="storage-location">
+              <i class="fas fa-map-marker-alt location-icon"></i>
+              <span>{{ scope.row.storageLocation || '無' }}</span>
+            </div>
+          </template>
+        </ElTableColumn>
+
+        <!-- 電話 -->
         <ElTableColumn
           prop="phone"
           label="電話"
@@ -150,7 +266,7 @@
           </template>
         </ElTableColumn>
 
-        <!-- 房間號（所有類型都顯示） -->
+        <!-- 房間號 -->
         <ElTableColumn
           prop="roomNumber"
           label="房間號"
@@ -164,7 +280,7 @@
           </template>
         </ElTableColumn>
 
-        <!-- 行李數量（所有類型都顯示） -->
+        <!-- 行李數量 -->
         <ElTableColumn
           prop="luggageCount"
           label="行李數量"
@@ -178,7 +294,7 @@
           </template>
         </ElTableColumn>
         
-        <!-- 寄存時間（所有類型都顯示） -->
+        <!-- 寄存時間 -->
         <ElTableColumn
           prop="checkinTime"
           label="寄存時間"
@@ -193,9 +309,9 @@
           </template>
         </ElTableColumn>
         
-        <!-- 取件時間（今日取件顯示） -->
+        <!-- 取件時間（取件/歷史記錄顯示） -->
         <ElTableColumn
-          v-if="currentDetailType === 'todayOut'"
+          v-if="currentDetailType === 'todayOut' || currentDetailType === 'history'"
           prop="checkoutTime"
           label="取件時間"
           align="center"
@@ -204,14 +320,27 @@
           <template #default="scope">
             <div class="time-info">
               <i class="fas fa-clock time-icon"></i>
-              <span>{{ scope.row.checkoutTime }}</span>
+              <span>{{ scope.row.checkoutTime || '未取件' }}</span>
             </div>
           </template>
         </ElTableColumn>
-
-        <!-- 身份證號碼（僅今日取件顯示） -->
+        
+        <!-- 應收費用 -->
         <ElTableColumn
-          v-if="currentDetailType === 'todayOut'"
+          label="應收費用" 
+          align="center"
+          min-width="120"
+        >
+          <template #default="scope">
+            <div :class="{ 'overdue-fee': calculateOverdueFee(scope.row) > 0 }">
+              {{ calculateOverdueFee(scope.row) > 0 ? 'MOP ' + calculateOverdueFee(scope.row).toFixed(0) : '0' }}
+            </div>
+          </template>
+        </ElTableColumn>
+        
+        <!-- 身份證號碼（取件/歷史記錄顯示） -->
+        <ElTableColumn
+          v-if="currentDetailType === 'todayOut' || currentDetailType === 'history'"
           prop="idNumber"
           label="身份證號碼"
           align="center"
@@ -243,27 +372,33 @@
               </ElTag>
               
               <ElButton
-              v-if="isExpired(scope.row)"
-              size="mini"
-              type="danger"
-              @click.stop="handleDelete(scope.row)"
-              class="delete-btn"
-              :loading="deleteLoading[scope.row.id]"
-            >
-              <i class="fas fa-trash-alt"></i>
-            </ElButton>
-
+                v-if="isExpired(scope.row)"
+                size="mini"
+                type="danger"
+                @click.stop="handleDelete(scope.row)"
+                class="delete-btn"
+                :loading="deleteLoading[scope.row.id]"
+              >
+                <i class="fas fa-trash-alt"></i>
+              </ElButton>
             </div>
           </template>
         </ElTableColumn>
       </ElTable>
+
+      <!-- 所有費用總計 -->
+      <div v-if="filteredDetailList.length > 0" class="total-fee-section">
+        <div class="total-fee-label">所有費用總計：</div>
+        <div class="total-fee-value">MOP {{ calculateTotalFee() }}</div>
+      </div>
 
       <!-- 空數據提示 -->
       <div v-if="!detailLoading && filteredDetailList.length === 0" class="empty-detail-tip enhanced-empty-state">
         <div class="empty-icon-container">
           <i class="fas fa-box-open"></i>
         </div>
-        <h3 class="empty-title">{{ getTypeLabel(currentDetailType) }}暫無數據</h3>
+        <h3 class="empty-title">{{ getEmptyTipText() }}</h3>
+        <p class="empty-subtitle" v-if="currentDetailType === 'history'">可調整日期範圍、狀態或搜尋條件查詢更多記錄</p>
       </div>
     </ElDialog>
 
@@ -278,7 +413,10 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { ElDialog, ElTable, ElTableColumn, ElInput, ElTag, ElButton, ElMessageBox,   } from 'element-plus'
+import * as XLSX from 'xlsx'
+import { ElDialog, ElTable, ElTableColumn, ElInput, ElTag, ElButton, ElMessageBox, ElDatePicker, ElSelect, ElOption } from 'element-plus'
+import dayjs from 'dayjs'
+
 
 import StatCard from '@/components/StatCard.vue'
 import LuggageManagement from '@/views/staff/LuggageManagement.vue' 
@@ -288,7 +426,7 @@ import luggageApi from '@/api/luggage'
 const router = useRouter()
 const authStore = useAuthStore()
 
-// 日期格式化
+// 日期格式化工具
 const formatDate = (date) => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -296,47 +434,132 @@ const formatDate = (date) => {
   return `${year}-${month}-${day}`
 }
 
+// 獲取指定日期範圍
+const getDateRange = (type) => {
+  const today = new Date()
+  const start = new Date()
+  const end = new Date()
+  
+  switch (type) {
+    case 'today':{
+      // 今天
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    }
+    case 'yesterday':{
+      // 昨天
+      start.setDate(today.getDate() - 1)
+      start.setHours(0, 0, 0, 0)
+      end.setDate(today.getDate() - 1)
+      end.setHours(23, 59, 59, 999)
+      break
+    }
+    case 'week':{
+      // 本週 (禮拜一至今天)
+      const day = today.getDay() || 7 
+      start.setDate(today.getDate() - (day - 1))
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    }
+    case 'month':{
+      // 本月
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setMonth(today.getMonth() + 1, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    }
+    case 'year':{
+      // 本年
+      start.setMonth(0, 1)
+      start.setHours(0, 0, 0, 0)
+      end.setMonth(11, 31)
+      end.setHours(23, 59, 59, 999)
+      break
+    }
+    default:
+      return [formatDate(today), formatDate(today)]
+  }
+  
+  return [formatDate(start), formatDate(end)]
+}
+
 // 基礎狀態變量
-const loading = ref(true) // 儀表板加載狀態
-const stats = ref({       // 統計數據
-  current: 0,    // 當前寄存數
-  todayIn: 0,    // 今日寄存數
-  todayOut: 0    // 今日取件數
+const loading = ref(true)
+const stats = ref({
+  current: 0,
+  todayIn: 0,
+  todayOut: 0,
+  historyCount: 0
 })
+const dateRange = ref(getDateRange('today')) // 默認為今天
+const exportLoading = ref(false)
+const currentShortcut = ref('today') // 追蹤當前選擇的快捷日期
+
+// 所有行李數據，用於計算總應收費用
+const allLuggageData = ref([])
+
+// 日期選擇器快捷選項
+const dateShortcuts = [
+  { text: '今天', value: () => getDateRange('today') },
+  { text: '昨天', value: () => getDateRange('yesterday') },
+  { text: '本週', value: () => getDateRange('week') },
+  { text: '本月', value: () => getDateRange('month') },
+  { text: '本季度', value: () => getDateRange('quarter') },
+  { text: '本年', value: () => getDateRange('year') }
+]
+
+// 狀態篩選變量（多選）
+const selectedStatus = ref([])
 
 // 詳情彈窗相關
-const detailDialogVisible = ref(false)  // 詳情彈窗顯示狀態
-const currentDetailType = ref('')       // 當前查看類型：current/todayIn/todayOut
-const detailList = ref([])              // 詳情列表數據
-const detailLoading = ref(false)        // 詳情加載狀態
-const searchKeyword = ref('')           // 詳情搜尋關鍵字
-const detailDate = ref(formatDate(new Date())) // 預設今日
-const deleteLoading = reactive({})      // 刪除按鈕加載狀態
+const detailDialogVisible = ref(false)
+const currentDetailType = ref('')
+const detailList = ref([])
+const detailLoading = ref(false)
+const searchKeyword = ref('')
+const deleteLoading = reactive({})
 
 // 反饋提示相關
-const feedbackMessage = ref('')  // 反饋消息內容
-const feedbackType = ref('info') // 反饋類型：info/success/error
+const feedbackMessage = ref('')
+const feedbackType = ref('info')
 
-// 計算屬性
-// 反饋提示圖標
+// 計算屬性：反饋提示圖標
 const feedbackIcon = computed(() => {
   if (feedbackType.value === 'success') return 'fas fa-check-circle'
   if (feedbackType.value === 'error') return 'fas fa-exclamation-circle'
   return 'fas fa-info-circle'
 })
 
-// 過濾後的詳情列表（搜尋功能）
+// 計算屬性：過濾後的詳情列表
 const filteredDetailList = computed(() => {
-  if (!searchKeyword.value.trim()) return detailList.value
-  const keyword = searchKeyword.value.trim().toLowerCase()
-  return detailList.value.filter(item => {
-    return (
-      (item.orderNo && item.orderNo.toLowerCase().includes(keyword)) ||
-      (item.guestName && item.guestName.toLowerCase().includes(keyword)) ||
-      (item.phone && item.phone.toLowerCase().includes(keyword)) ||
-      (item.roomNumber && item.roomNumber.toLowerCase().includes(keyword))
-    )
-  })
+  let result = [...detailList.value]
+  
+  // 1. 關鍵字搜尋
+  if (searchKeyword.value.trim()) {
+    const keyword = searchKeyword.value.trim().toLowerCase()
+    result = result.filter(item => {
+      return (
+        (item.orderNo && item.orderNo.toLowerCase().includes(keyword)) ||
+        (item.guestName && item.guestName.toLowerCase().includes(keyword)) ||
+        (item.phone && item.phone.toLowerCase().includes(keyword)) ||
+        (item.roomNumber && item.roomNumber.toLowerCase().includes(keyword)) ||
+        (item.storageLocation && item.storageLocation.toLowerCase().includes(keyword)) ||
+        (item.idNumber && item.idNumber.toLowerCase().includes(keyword))
+      )
+    })
+  }
+  
+  // 2. 歷史記錄-狀態篩選
+  if (currentDetailType.value === 'history' && selectedStatus.value.length > 0) {
+    result = result.filter(item => {
+      return selectedStatus.value.includes(item.status.toLowerCase())
+    })
+  }
+  
+  return result
 })
 
 // 表格樣式計算屬性
@@ -358,23 +581,44 @@ const rowHoverStyle = computed(() => ({
   boxShadow: '0 2px 10px rgba(59, 130, 246, 0.1)'
 }))
 
-// 工具方法
-// 顯示操作反饋
+// 工具方法：顯示操作反饋
 const showFeedback = (message, type = 'info') => {
   feedbackMessage.value = message
   feedbackType.value = type
-  // 3秒後自動隱藏
   setTimeout(() => {
     feedbackMessage.value = ''
   }, 3000)
 }
 
-// 獲取統計類型中文標籤
+// 工具方法：獲取彈窗標題
+const getDialogTitle = () => {
+  const labelMap = {
+    current: '當前寄存行李詳情',
+    todayIn: '今日寄存行李詳情',
+    todayOut: '今日取件行李詳情',
+    history: `行李歷史記錄查詢（${dateRange.value?.[0] || ''} 至 ${dateRange.value?.[1] || ''}）`
+  }
+  return labelMap[currentDetailType.value] || '行李詳情'
+}
+
+// 工具方法：獲取空數據提示文本
+const getEmptyTipText = () => {
+  const tipMap = {
+    current: '當前暫無寄存行李',
+    todayIn: '今日暫無寄存行李記錄',
+    todayOut: '今日暫無取件行李記錄',
+    history: `指定日期範圍內（${dateRange.value[0]} 至 ${dateRange.value[1]}）無相關記錄`
+  }
+  return tipMap[currentDetailType.value] || '暫無數據'
+}
+
+// 工具方法：獲取統計類型中文標籤
 const getTypeLabel = (type) => {
   const labelMap = {
     current: '當前寄存',
     todayIn: '今日寄存',
-    todayOut: '今日取件'
+    todayOut: '今日取件',
+    history: '歷史記錄'
   }
   return labelMap[type] || type
 }
@@ -384,14 +628,87 @@ const isExpired = (item) => {
   return item.status.toLowerCase() === 'expired'
 }
 
+// 計算過期費用（每件每天20元，免費3天）
+const calculateOverdueFee = (item) => {
+  // 檢查必要的寄存時間（使用原始ISO日期）
+  if (!item.originalCheckinTime) {
+    console.log(`行李ID: ${item.id} - 缺少寄存時間，費用為0`);
+    return 0;
+  }
+  
+  // 使用原始ISO日期解析
+  const checkinTime = dayjs(item.originalCheckinTime);
+  if (!checkinTime.isValid()) {
+    console.log(`行李ID: ${item.id} - 無效的寄存時間: ${item.originalCheckinTime}`)
+    return 0;
+  }
+  
+  // 確定取件時間（使用原始ISO日期）
+  const checkoutTime = item.originalCheckoutTime 
+    ? dayjs(item.originalCheckoutTime) 
+    : dayjs(); // 未取件則使用當前時間
+    
+  if (!checkoutTime.isValid()) {
+    console.log(`行李ID: ${item.id} - 無效的取件時間: ${item.originalCheckoutTime}`)
+    return 0;
+  }
+  
+  // 計算天數差（使用毫秒差計算更精確）
+  const checkinTimestamp = checkinTime.valueOf();
+  const checkoutTimestamp = checkoutTime.valueOf();
+  
+  // 確保取件時間不早於寄存時間
+  const effectiveCheckoutTimestamp = Math.max(checkoutTimestamp, checkinTimestamp);
+  
+  // 計算天數差（向上取整，不足一天按一天計算）
+  const diffMs = effectiveCheckoutTimestamp - checkinTimestamp;
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  const storageDays = Math.ceil(diffDays);
+  
+  // 確保行李數量是有效數字且至少為1
+  const luggageCount = Math.max(1, Number(item.luggageCount) || 1);
+  const feePerDayPerLuggage = 20; // 每件每天20元
+  
+  // 免費3天，超過的天數才計算費用
+  const freeDays = 3;
+  const overdueDays = Math.max(0, storageDays - freeDays);
+  
+  const totalFee = overdueDays * feePerDayPerLuggage * luggageCount;
+  
+  // 調試日誌
+  console.log(`
+    行李ID: ${item.id}
+    原始寄存時間(ISO): ${item.originalCheckinTime}
+    解析後時間: ${checkinTime.format('YYYY-MM-DD HH:mm')}
+    取件時間: ${checkoutTime.format('YYYY-MM-DD HH:mm')}
+    天數差: ${diffDays.toFixed(0)}天
+    逾期天數: ${overdueDays}天
+    費用: ${totalFee}元
+  `);
+  
+  return isNaN(totalFee) ? 0 : totalFee;
+};
+
+// 計算所有行李的費用總計
+const calculateTotalFee = () => {
+  const total = filteredDetailList.value.reduce((sum, item) => {
+    const fee = calculateOverdueFee(item);
+    return sum + (isNaN(fee) ? 0 : fee);
+  }, 0);
+  
+  // 確保總費用是數字且保留兩位小數
+  const result = Number(total.toFixed(0));
+  console.log(`總費用計算結果: ${result}元`);
+  return result;
+};
+
 // 獲取行李狀態中文標籤
-// 新增：在今日取件中，若有身份證號碼則顯示特殊狀態
 const getStatusLabel = (item) => {
   const { status, idNumber } = item;
   const normalizedStatus = status.toLowerCase();
   
-  // 今日取件且有身份證號碼，顯示特殊狀態
-  if (currentDetailType.value === 'todayOut' && normalizedStatus === 'retrieved' && idNumber) {
+  if (['todayOut', 'history'].includes(currentDetailType.value) && 
+      normalizedStatus === 'retrieved' && idNumber) {
     return '已取件(遺失憑證取件)';
   }
   
@@ -408,8 +725,8 @@ const getStatusIcon = (item) => {
   const { status, idNumber } = item;
   const normalizedStatus = status.toLowerCase();
   
-  // 特殊取件狀態使用不同圖標
-  if (currentDetailType.value === 'todayOut' && normalizedStatus === 'retrieved' && idNumber) {
+  if (['todayOut', 'history'].includes(currentDetailType.value) && 
+      normalizedStatus === 'retrieved' && idNumber) {
     return 'fas fa-id-card-alt status-icon special-picked-icon';
   }
   
@@ -426,8 +743,8 @@ const getStatusType = (item) => {
   const { status, idNumber } = item;
   const normalizedStatus = status.toLowerCase();
   
-  // 特殊取件狀態使用不同類型
-  if (currentDetailType.value === 'todayOut' && normalizedStatus === 'retrieved' && idNumber) {
+  if (['todayOut', 'history'].includes(currentDetailType.value) && 
+      normalizedStatus === 'retrieved' && idNumber) {
     return 'warning';
   }
   
@@ -439,27 +756,25 @@ const getStatusType = (item) => {
   return typeMap[normalizedStatus] || 'default';
 }
 
-// 獲取狀態標籤顏色（優化後的顏色方案）
+// 獲取狀態標籤顏色
 const getStatusColor = (item) => {
   const { status, idNumber } = item;
   const normalizedStatus = status.toLowerCase();
   
-  // 特殊取件狀態使用不同顏色
-  if (currentDetailType.value === 'todayOut' && normalizedStatus === 'retrieved' && idNumber) {
-    return '#f97316'; // 橙色 - 用於特殊取件狀態
+  if (['todayOut', 'history'].includes(currentDetailType.value) && 
+      normalizedStatus === 'retrieved' && idNumber) {
+    return '#f97316';
   }
   
-  // 優化後的顏色方案，更加協調美觀
   const colorMap = {
-    'stored': '#16a34a',      // 深綠色 - 已寄存
-    'retrieved': '#2563eb',    // 深藍色 - 已取件
-    'expired': '#dc2626',      // 深紅色 - 逾期未取
+    'stored': '#16a34a',
+    'retrieved': '#2563eb',
+    'expired': '#dc2626',
   }
   return colorMap[normalizedStatus] || '#6b7280';
 }
 
-// 業務方法
-// 登出處理
+// 業務方法：登出處理
 const handleLogout = async () => {
   try {
     await authStore.logout()
@@ -470,12 +785,12 @@ const handleLogout = async () => {
   }
 }
 
-// 關閉彈窗處理
+// 業務方法：關閉彈窗處理
 const handleDialogClose = () => {
   detailDialogVisible.value = false
 }
 
-// 加載儀表板統計數據
+// 業務方法：加載儀表板統計數據
 const loadDashboardData = async () => {
   try {
     loading.value = true
@@ -483,12 +798,13 @@ const loadDashboardData = async () => {
     stats.value = {
       current: data.currentStorage || 0,
       todayIn: data.todayCheckin || 0,
-      todayOut: data.todayCheckout || 0
+      todayOut: data.todayCheckout || 0,
+      historyCount: data.totalHistory || 0
     }
     
-    if (data.recentBags && currentDetailType.value === 'current') {
-      detailList.value = data.recentBags.map(formatLuggageItem)
-    }
+    // 加載所有行李數據用於計算總應收費用
+    const allLuggageResponse = await luggageApi.getAllCurrentLuggage()
+    allLuggageData.value = allLuggageResponse.data.map(formatLuggageItem)
   } catch (error) {
     console.error('獲取儀表板統計數據失敗:', error)
     showFeedback('統計數據加載失敗', 'error')
@@ -497,59 +813,111 @@ const loadDashboardData = async () => {
   }
 }
 
-// 加載詳情列表數據
+// 業務方法：加載詳情列表數據（區分今日和歷史）
 const loadDetailData = async (type) => {
   try {
     detailLoading.value = true
-    let response
+    let response, data;
+    const [startDate, endDate] = dateRange.value
+    
     switch (type) {
-      case 'current':
+      case 'current': {
+        // 當前寄存（未取件）
         response = await luggageApi.getAllCurrentLuggage()
-        detailList.value = response.data.map(formatLuggageItem)
+        data = response.data
         break
-      case 'todayIn':
-        response = await luggageApi.getTodayStoredLuggage(detailDate.value.trim());
-        detailList.value = response.data.map(formatLuggageItem)
+      }
+      case 'todayIn': {
+        // 今日寄存（只查當天）
+        response = await luggageApi.getTodayStoredLuggage()
+        data = response.data
         break
-      case 'todayOut':
-        response = await luggageApi.getTodayRetrievedLuggage(detailDate.value.trim());
-        detailList.value = response.data.map(formatLuggageItem)
+      }
+      case 'todayOut': {
+        // 今日取件（只查當天）
+        response = await luggageApi.getTodayRetrievedLuggage()
+        data = response.data
         break
+      }
+      case 'history': {
+        // 歷史記錄（合併寄存和取件記錄）
+        const storedResponse = await luggageApi.getHistoricalStored(startDate, endDate)
+        const retrievedResponse = await luggageApi.getHistoricalRetrieved(startDate, endDate)
+        // 合併兩類記錄，並按時間排序
+        data = [...storedResponse.data, ...retrievedResponse.data]
+          .sort((a, b) => new Date(b.checkinTime) - new Date(a.checkinTime))
+        break
+      }
       default:
-        detailList.value = []
+        data = []
+        return
     }
+    
+    // 驗證數據是否為數組
+    if (!Array.isArray(data)) {
+      console.error(`獲取${getTypeLabel(type)}數據格式錯誤:`, data)
+      showFeedback(`${getTypeLabel(type)}數據格式錯誤`, 'error')
+      detailList.value = []
+      return
+    }
+    
+    detailList.value = data.map(formatLuggageItem)
   } catch (error) {
     console.error(`獲取${getTypeLabel(type)}詳情失敗:`, error)
-    showFeedback(`${getTypeLabel(type)}詳情加載失敗`, 'error')
+    const errorMsg = error.response?.data?.message || error.message || '未知錯誤'
+    showFeedback(`${getTypeLabel(type)}詳情加載失敗: ${errorMsg}`, 'error')
     detailList.value = []
   } finally {
     detailLoading.value = false
   }
 }
 
-// 格式化行李數據
+// 工具方法：格式化行李數據
 const formatLuggageItem = (item) => {
+  if (!item) return {};
+  
+  // 保留原始ISO日期用於計算
+  const originalCheckinTime = item.checkinTime;
+  const originalCheckoutTime = item.checkoutTime;
+  
+  // 格式化展示用的日期（轉換為本地時間顯示）
+  const displayCheckinTime = originalCheckinTime 
+    ? new Date(originalCheckinTime).toLocaleString() 
+    : '無';
+    
+  const displayCheckoutTime = originalCheckoutTime 
+    ? new Date(originalCheckoutTime).toLocaleString() 
+    : '未取件';
+  
   return {
     ...item,
-    // 處理新增字段
+    originalCheckinTime,
+    originalCheckoutTime,
+    checkinTime: displayCheckinTime,
+    checkoutTime: displayCheckoutTime,
+    storageLocation: item.storageLocation || '無',
     phone: item.phone || '無',
     roomNumber: item.roomNumber || '無',
     luggageCount: item.luggageCount || 1,
     idNumber: item.idNumber || '',
-    // 調整時間格式
-    checkinTime: item.checkinTime ? new Date(item.checkinTime).toLocaleString() : '無',
-    checkoutTime: item.checkoutTime ? new Date(item.checkoutTime).toLocaleString() : '未取件',
-    // 保持訂單編號格式
     orderNo: item.id ? `LUG-${item.id}` : '無'
   }
-}
+};
 
-// 打開詳情彈窗
+// 業務方法：打開詳情彈窗
 const openDetailDialog = async (type) => {
   try {
     currentDetailType.value = type;
     detailDialogVisible.value = true;
-    await loadDetailData(type);
+    detailList.value = [];
+    detailLoading.value = true;
+    
+    // 如果打開歷史記錄，使用當前日期範圍
+    if (type === 'history') {
+      await loadDetailData(type);
+    } else {
+      await loadDetailData(type);
+    }
   } catch (error) {
     console.error('打開詳情彈窗失敗：', error);
     showFeedback('打開詳情失敗，請重試', 'error');
@@ -557,12 +925,99 @@ const openDetailDialog = async (type) => {
   }
 }
 
-// 處理過期行李刪除
-const handleDelete = async (item) => {
+// 設置日期範圍
+const setDateRange = (type) => {
+  currentShortcut.value = type
+  dateRange.value = getDateRange(type)
+  handleFilterChange()
+}
+
+// 業務方法：篩選條件變更處理
+const handleFilterChange = () => {
+  if (detailDialogVisible.value && currentDetailType.value === 'history') {
+    loadDetailData(currentDetailType.value)
+  }
+}
+
+// 業務方法：Excel匯出功能
+const exportToExcel = async () => {
+  if (filteredDetailList.value.length === 0) {
+    showFeedback('沒有可匯出的數據', 'info')
+    return
+  }
+  
   try {
-    // 顯示確認對話框
+    exportLoading.value = true
+    
+    // 格式化匯出數據，包含應收費用
+    const exportData = filteredDetailList.value.map(item => ({
+      '行李編號': item.orderNo,
+      '客人名稱': item.guestName,
+      '存放位置': item.storageLocation,
+      '電話': item.phone,
+      '房間號': item.roomNumber,
+      '行李數量': item.luggageCount,
+      '寄存時間': item.checkinTime,
+      '取件時間': item.checkoutTime || '未取件',
+      '應收費用': calculateOverdueFee(item) > 0 ? `MOP ${calculateOverdueFee(item).toFixed(0)}` : '0',
+      '身份證號碼': item.idNumber || '無',
+      '狀態': getStatusLabel(item)
+    }))
+    
+    // 添加總計行
+    exportData.push({
+      '行李編號': '',
+      '客人名稱': '',
+      '存放位置': '',
+      '電話': '',
+      '房間號': '',
+      '行李數量': '',
+      '寄存時間': '',
+      '取件時間': '',
+      '應收費用': `所有費用總計: MOP ${calculateTotalFee()}`,
+      '身份證號碼': '',
+      '狀態': ''
+    })
+    
+    // 創建工作簿和工作表
+    const worksheet = XLSX.utils.json_to_sheet(exportData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, getTypeLabel(currentDetailType.value))
+    
+    // 生成文件名
+    const fileName = `${getTypeLabel(currentDetailType.value)}_${dateRange.value[0]}_至_${dateRange.value[1]}.xlsx`
+    
+    // 匯出文件
+    XLSX.writeFile(workbook, fileName)
+    showFeedback(`成功匯出 ${exportData.length - 1} 條記錄至Excel`, 'success')
+  } catch (error) {
+    console.error('Excel匯出失敗:', error)
+    showFeedback('Excel匯出失敗，請重試', 'error')
+  } finally {
+    exportLoading.value = false
+  }
+}
+
+// 業務方法：處理過期行李刪除
+const handleDelete = async (item) => {
+  // 顯示包含應收費用的確認信息
+  try {
+    const overdueFee = calculateOverdueFee(item)
+    let confirmMessage = `確定要刪除這條過期行李記錄嗎？\n\n` +
+                         `行李編號: ${item.orderNo}\n` +
+                         `客人姓名: ${item.guestName}\n` +
+                         `存放位置: ${item.storageLocation}\n` +
+                         `寄存時間: ${item.checkinTime}\n`
+    
+    // 如果有應收費用，顯示費用信息
+    if (overdueFee > 0) {
+      confirmMessage += `應收費用: MOP ${overdueFee.toFixed(0)}\n\n`
+    }
+    
+    confirmMessage += `此操作代表員工已清理該行李，刪除後將無法恢復，請謹慎操作！`
+    
     const confirmResult = await ElMessageBox.confirm(
-      `確定要刪除這條過期行李記錄嗎？\n\n行李編號: ${item.orderNo}\n客人姓名: ${item.guestName}\n寄存時間: ${item.checkinTime}\n\n此操作代表員工已清理該行李，刪除後將無法恢復，請謹慎操作！`,
+      confirmMessage,
       '確認刪除過期行李',
       {
         confirmButtonText: '確認刪除',
@@ -573,28 +1028,19 @@ const handleDelete = async (item) => {
     )
 
     if (confirmResult === 'confirm') {
-      // 設置刪除按鈕加載狀態
       deleteLoading[item.id] = true
-      
-      // 調用API刪除過期行李記錄
       await luggageApi.markAsDeleted(item.id)
-      
-      // 從本地列表中移除該記錄
       detailList.value = detailList.value.filter(luggage => luggage.id !== item.id)
-      
-      // 顯示成功反饋
+      allLuggageData.value = allLuggageData.value.filter(luggage => luggage.id !== item.id)
       showFeedback(`已成功刪除過期行李記錄：${item.orderNo}`, 'success')
-      
-      // 重新加載統計數據，保持數據一致性
       loadDashboardData()
     }
   } catch (error) {
-    if (error !== 'cancel') { // 排除用戶取消的情況
+    if (error !== 'cancel') {
       console.error('刪除過期行李記錄失敗:', error)
       showFeedback('刪除失敗，請重試', 'error')
     }
   } finally {
-    // 重置刪除按鈕加載狀態
     deleteLoading[item.id] = false
   }
 }
@@ -614,7 +1060,6 @@ onMounted(() => {
   min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #e4edf9 100%);
 }
-
 
 .header {
   margin-bottom: 30px;
@@ -673,10 +1118,6 @@ onMounted(() => {
   box-shadow: 0 6px 15px rgba(231, 76, 60, 0.4);
 }
 
-.logout-btn i {
-  font-size: 1.2rem;
-}
-
 .main-content {
   display: flex;
   flex-direction: column;
@@ -733,11 +1174,6 @@ onMounted(() => {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
 }
 
-.stat-card-wrapper > * {
-  position: relative;
-  z-index: 2;
-}
-
 .view-detail-tip {
   position: absolute;
   bottom: 0;
@@ -776,7 +1212,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
   gap: 12px;
 }
@@ -786,6 +1222,63 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+/* 日期過濾容器樣式 */
+.date-filter-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-right: 16px;
+}
+
+/* 快捷日期按鈕組樣式 */
+.date-shortcut-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.date-shortcut-buttons .el-button--mini {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.date-shortcut-buttons .el-button--mini.active {
+  background-color: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.date-shortcut-buttons .el-button--mini:not(.active):hover {
+  background-color: #eff6ff;
+  color: #3b82f6;
+  border-color: #dbeafe;
+}
+
+/* 增強日期選擇器樣式 */
+:deep(.enhanced-datepicker-popper .el-picker-panel__content) {
+  width: auto !important;
+  min-width: 550px;
+}
+
+:deep(.enhanced-datepicker-popper .el-date-range-picker__content) {
+  width: 270px !important;
+}
+
+.storage-location {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #1e40af;
+}
+
+.location-icon {
+  color: #3b82f6;
+  font-size: 14px;
 }
 
 .feedback-message {
@@ -806,7 +1299,6 @@ onMounted(() => {
   gap: 15px;
   max-width: 90%;
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .feedback-message.info {
@@ -861,13 +1353,34 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.enhanced-input {
+.enhanced-input, .enhanced-datepicker, .enhanced-select {
   border-radius: 8px !important;
   transition: all 0.2s ease;
 }
 
-.enhanced-input:focus-within {
+.enhanced-input:focus-within, :deep(.enhanced-datepicker:focus-within), :deep(.enhanced-select:focus-within) {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* 優化多選標籤顯示 */
+:deep(.enhanced-select .el-select__tags) {
+  flex-wrap: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+:deep(.enhanced-select .el-tag) {
+  margin: 2px 4px 2px 0;
+}
+
+.export-btn {
+  border-radius: 8px !important;
+  transition: all 0.2s ease;
+}
+
+.export-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
 }
 
 .enhanced-table {
@@ -876,7 +1389,6 @@ onMounted(() => {
   border: 1px solid #e0e7ff;
 }
 
-/* 表格內容樣式增強 */
 .order-no {
   color: #1e40af;
   font-weight: 600;
@@ -908,12 +1420,12 @@ onMounted(() => {
   color: #94a3b8;
 }
 
-/* 狀態樣式增強 */
 .status-badge {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .status-icon {
@@ -921,20 +1433,20 @@ onMounted(() => {
 }
 
 .stored-icon {
-  color: #16a34a; /* 深綠色 */
+  color: #16a34a;
 }
 
 .picked-icon {
-  color: #2563eb; /* 深藍色 */
+  color: #2563eb;
 }
 
 .special-picked-icon {
-  color: #f97316; /* 橙色 - 特殊取件狀態 */
+  color: #f97316;
   animation: pulse 2s infinite;
 }
 
 .overdue-icon {
-  color: #dc2626; /* 深紅色 */
+  color: #dc2626;
   animation: pulse 2s infinite;
 }
 
@@ -945,7 +1457,6 @@ onMounted(() => {
   font-size: 0.85rem;
 }
 
-/* 刪除按鈕樣式 */
 .delete-btn {
   margin-left: 8px;
   padding: 2px 8px;
@@ -956,7 +1467,6 @@ onMounted(() => {
   transform: scale(1.05);
 }
 
-/* 空狀態樣式增強 */
 .enhanced-empty-state {
   padding: 80px 20px;
   text-align: center;
@@ -990,14 +1500,46 @@ onMounted(() => {
   margin: 0 0 8px 0;
 }
 
-/* 動畫效果 */
+.empty-subtitle {
+  color: #64748b;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* 應收費用樣式 */
+.overdue-fee {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* 總費用樣式 */
+.total-fee-section {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 2px solid #3b82f6;
+  font-size: 1.2rem;
+}
+
+.total-fee-label {
+  font-weight: 600;
+  color: #334155;
+  margin-right: 12px;
+}
+
+.total-fee-value {
+  font-weight: 700;
+  color: #dc2626;
+}
+
 @keyframes pulse {
   0% { opacity: 1; }
   50% { opacity: 0.6; }
   100% { opacity: 1; }
 }
 
-/* 響應式調整 */
 @media (max-width: 1600px) {
   .dashboard-container {
     padding: 25px 40px;
@@ -1038,8 +1580,22 @@ onMounted(() => {
     gap: 12px;
   }
   
-  :deep(.el-input) {
+  :deep(.el-input), :deep(.el-date-picker), :deep(.el-select) {
     width: 100% !important;
+  }
+  
+  :deep(.enhanced-datepicker-popper .el-picker-panel__content) {
+    min-width: 90vw !important;
+  }
+  
+  :deep(.enhanced-datepicker-popper .el-date-range-picker__content) {
+    width: 45vw !important;
+  }
+  
+  .total-fee-section {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
   }
 }
 
@@ -1072,12 +1628,10 @@ onMounted(() => {
     padding: 15px;
   }
   
-  /* 詳情表格在小屏幕下的調整 */
   :deep(.el-table .el-table__cell) {
     padding: 8px 4px !important;
   }
   
-  /* 狀態列調整 */
   .status-badge {
     flex-wrap: wrap;
   }

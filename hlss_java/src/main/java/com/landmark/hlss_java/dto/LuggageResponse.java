@@ -15,6 +15,7 @@ public class LuggageResponse {
     private String status;
     private StorageInfo storage;
     private String handler;
+    private String remark;
 
     @Data
     @Builder

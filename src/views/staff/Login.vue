@@ -65,7 +65,7 @@
     </div>
     
     <footer class="login-footer">
-      <p>© {{ currentYear }} 置地酒店管理系統</p>
+      <p>© {{ currentYear }} 置地酒店禮賓部行李寄存系統</p>
       <p class="version">v{{ appVersion }}</p>
     </footer>
   </div>

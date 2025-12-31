@@ -19,13 +19,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
  * 行李管理控制器
- * 處理行李寄存、查詢、取件等所有API請求
+ * 處理行李寄存、查詢、取件及列印等所有API請求
  */
 @RestController
 @RequestMapping("/api/luggage")
@@ -39,9 +40,45 @@ public class LuggageController {
      */
     @PostMapping
     public ResponseEntity<LuggageResponse> checkIn(@RequestBody LuggageRequest request) {
-        log.info("收到行李寄存請求：客人={}, 行李數量={}", request.getGuestName(), request.getLuggageCount());
+        log.info("收到行李寄存請求：客人={}, 行李數量={}, 存放位置={}",
+                request.getGuestName(), request.getLuggageCount(), request.getStorageLocation());
         Luggage luggage = service.checkIn(request);
         return ResponseEntity.ok(convertToResponse(luggage));
+    }
+
+    /**
+     * 請求後端列印行李憑證（雙份：客人憑證 + 行李標籤）
+     * 前端提交成功後調用此接口，觸發後端直接列印
+     */
+    @PostMapping("/{id}/print-voucher")
+    public ResponseEntity<Map<String, Object>> printVoucher(@PathVariable Long id) {
+        log.info("收到列印行李憑證請求：行李ID={}", id);
+        try {
+            // 1. 調用服務層的雙份列印方法（傳入行李ID）
+            boolean printSuccess = service.printTwoTickets(id);
+
+            // 使用HashMap返回多個參數（解決singletonMap參數數量錯誤）
+            Map<String, Object> response = new HashMap<>();
+            if (printSuccess) {
+                log.info("行李憑證列印成功：ID={}", id);
+                response.put("success", true);
+                response.put("message", "列印成功");
+                return ResponseEntity.ok(response);
+            } else {
+                log.warn("行李憑證列印失敗：ID={}", id);
+                response.put("success", false);
+                response.put("message", "列印失敗，請檢查印表機連接");
+                return ResponseEntity.ok(response);
+            }
+        } catch (ResourceNotFoundException e) {
+            log.error("列印失敗：{}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Collections.singletonMap("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("列印過程發生異常：ID={}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Collections.singletonMap("message", "列印過程發生錯誤，請聯繫管理員"));
+        }
     }
 
     /**
@@ -143,12 +180,9 @@ public class LuggageController {
     public ResponseEntity<List<LuggageSimpleResponse>> getAllCurrentLuggage() {
         log.info("API請求：獲取全部當前寄存的行李");
 
-        // 調用Service方法查詢數據
         List<Luggage> currentLuggage = service.findAllCurrentLuggage();
-
-        // 轉換為前端需要的響應格式
         List<LuggageSimpleResponse> response = currentLuggage.stream()
-                .map(this::convertToSimpleResponse)  // 使用現有的轉換方法
+                .map(this::convertToSimpleResponse)
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
@@ -213,7 +247,6 @@ public class LuggageController {
                 request.getIdCardNumber() != null ? "已提供" : "未提供");
 
         try {
-            // 檢查請求參數
             if (request.getScannedLuggage() == null || request.getScannedLuggage().isEmpty()) {
                 throw new IllegalArgumentException("未掃描到任何行李標籤，請重新掃描");
             }
@@ -241,26 +274,24 @@ public class LuggageController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Collections.singletonMap("message", "取件處理失敗，請稍後重試"));
         }
-
     }
 
     // ==================================================
-    // 新增：今日寄存/取件專用API接口（獨立於原有接口）
+    // 核心功能：今日寄存/取件 + 歷史記錄查詢API
     // ==================================================
     /**
-     * 專用API：查詢指定日期的「今日寄存」記錄
+     * 今日寄存記錄（僅查當天，不支持日期範圍）
      * 路徑：/api/luggage/today-stored
-     * 參數：date（必填，格式YYYY-MM-DD）
-     * 返回：已生成QR標籤 + 未取件的今日寄存記錄
      */
     @GetMapping("/today-stored")
     public ResponseEntity<List<LuggageSimpleResponse>> getTodayStored(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 
-        log.info("專用API請求：今日寄存記錄，日期={}", date);
-        List<Luggage> todayStored = service.getTodayStoredLuggage(date);
+        // 強制限定為當天（防止前端傳入其他日期）
+        LocalDate today = LocalDate.now();
+        log.info("今日寄存記錄查詢：強制使用當天日期={}", today);
 
-        // 轉換為前端所需的簡潔響應格式
+        List<Luggage> todayStored = service.getTodayStoredLuggage(today);
         List<LuggageSimpleResponse> response = todayStored.stream()
                 .map(this::convertToSimpleResponse)
                 .collect(Collectors.toList());
@@ -269,19 +300,66 @@ public class LuggageController {
     }
 
     /**
-     * 專用API：查詢指定日期的「今日取件」記錄
+     * 今日取件記錄（僅查當天，不支持日期範圍）
      * 路徑：/api/luggage/today-retrieved
-     * 參數：date（必填，格式YYYY-MM-DD）
-     * 返回：已生成QR標籤 + 已取件的今日取件記錄
      */
     @GetMapping("/today-retrieved")
     public ResponseEntity<List<LuggageSimpleResponse>> getTodayRetrieved(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 
-        log.info("專用API請求：今日取件記錄，日期={}", date);
-        List<Luggage> todayRetrieved = service.getTodayRetrievedLuggage(date);
+        // 強制限定為當天
+        LocalDate today = LocalDate.now();
+        log.info("今日取件記錄查詢：強制使用當天日期={}", today);
 
+        List<Luggage> todayRetrieved = service.getTodayRetrievedLuggage(today);
         List<LuggageSimpleResponse> response = todayRetrieved.stream()
+                .map(this::convertToSimpleResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 歷史寄存記錄（支持自定義時間範圍）
+     * 路徑：/api/luggage/history/stored
+     */
+    @GetMapping("/history/stored")
+    public ResponseEntity<List<LuggageSimpleResponse>> getHistoricalStored(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        log.info("歷史寄存記錄查詢：時間範圍={} 至 {}", startDate, endDate);
+        // 驗證日期合法性
+        if (endDate.isBefore(startDate)) {
+            log.warn("日期範圍異常：結束日期({})早於開始日期({})", endDate, startDate);
+            throw new IllegalArgumentException("結束日期不能早於開始日期");
+        }
+
+        List<Luggage> historicalStored = service.getHistoricalStoredLuggage(startDate, endDate);
+        List<LuggageSimpleResponse> response = historicalStored.stream()
+                .map(this::convertToSimpleResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 歷史取件記錄（支持自定義時間範圍）
+     * 路徑：/api/luggage/history/retrieved
+     */
+    @GetMapping("/history/retrieved")
+    public ResponseEntity<List<LuggageSimpleResponse>> getHistoricalRetrieved(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        log.info("歷史取件記錄查詢：時間範圍={} 至 {}", startDate, endDate);
+        if (endDate.isBefore(startDate)) {
+            log.warn("日期範圍異常：結束日期({})早於開始日期({})", endDate, startDate);
+            throw new IllegalArgumentException("結束日期不能早於開始日期");
+        }
+
+        List<Luggage> historicalRetrieved = service.getHistoricalRetrievedLuggage(startDate, endDate);
+        List<LuggageSimpleResponse> response = historicalRetrieved.stream()
                 .map(this::convertToSimpleResponse)
                 .collect(Collectors.toList());
 
@@ -290,22 +368,22 @@ public class LuggageController {
     // ==================================================
 
     // === 私有輔助方法 ===
-
     /**
      * 轉換Luggage實體為LuggageSimpleResponse（簡潔返回格式）
-     * 已補充：完整手機號、房間號、身份證號、取件時間
      */
     private LuggageSimpleResponse convertToSimpleResponse(Luggage luggage) {
         return LuggageSimpleResponse.builder()
                 .id(luggage.getId())
                 .guestName(luggage.getGuestName())
-                .phone(luggage.getPhone()) // 完整手機號（不脱敏，前端可自行處理）
+                .phone(luggage.getPhone()) // 完整手機號（前端可按需脱敏）
                 .roomNumber(luggage.getRoomNumber()) // 房間號（無則返回null）
                 .luggageCount(luggage.getLuggageCount()) // 行李數量
                 .checkinTime(luggage.getCheckinTime()) // 寄存時間
                 .checkoutTime(luggage.getCheckoutTime()) // 取件時間（已取件才有值）
-                .idNumber(luggage.getIdNumber()) // 身份證號（遺失憑證用，無則返回null）
-                .status(luggage.getStatus().name()) // 狀態（枚举轉字符串：STORED/RETRIEVED等）
+                .idNumber(luggage.getIdNumber()) // 身份證號（遺失憑證取件時存儲）
+                .status(luggage.getStatus().name()) // 狀態（STORED/RETRIEVED/EXPIRED）
+                .storageLocation(luggage.getStorageLocation()) // 存放位置
+                .remark(luggage.getRemark())
                 .build();
     }
 
@@ -313,23 +391,8 @@ public class LuggageController {
      * 轉換Luggage實體為LuggageResponse（寄存成功返回格式）
      */
     private LuggageResponse convertToResponse(Luggage luggage) {
-        LuggageResponse.GuestInfo guestInfo = LuggageResponse.GuestInfo.builder()
-                .name(luggage.getGuestName())
-                .contact(luggage.getPhone())
-                .roomNumber(luggage.getRoomNumber())
-                .build();
-
-        LuggageResponse.StorageInfo storageInfo = LuggageResponse.StorageInfo.builder()
-                .location(luggage.getStorageLocation())
-                .build();
-
         return LuggageResponse.builder()
-                .id("LUG-" + luggage.getId())
-                .guest(guestInfo)
-                .checkinTime(luggage.getCheckinTime())
-                .dueTime(luggage.getCheckinTime().plusHours(24))
-                .status(String.valueOf(luggage.getStatus()))
-                .storage(storageInfo)
+                .id(String.valueOf(luggage.getId()))
                 .build();
     }
 }
